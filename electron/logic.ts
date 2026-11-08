@@ -923,7 +923,7 @@ export const DEFAULT_PREFS: Prefs = {
   refreshSeconds: 60,
   pipelineHours: 2,
   mergeButton: true,
-  stackMenuBar: false,
+  stackMenuBar: true,
   rememberPlace: false,
   startAtLogin: true,
   showAllRequests: [],

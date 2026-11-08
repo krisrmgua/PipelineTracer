@@ -272,7 +272,7 @@ The bell in the panel lists this session's events, filtered by **All**, **Pipeli
 | Refresh interval | 60 seconds. Choices: 10, 20, 30, 40, 50, 60. |
 | Completion history | 2 hours. Choices: 1, 2, 4, 6, 8, 12, 24. Covers GitLab pipelines and GitHub Actions runs. Open requests are not cut off by it. |
 | Show merge actions | On. Covers GitLab merge requests and GitHub pull requests. Hidden on a request you cannot merge. |
-| Stack menu bar counters | Off. macOS only. Puts MR, Run, and Fail on separate lines beside the ring to save menu bar width. |
+| Stack menu bar counters | On. macOS only. Puts MR, Run, and Fail on separate lines beside the ring to save menu bar width. |
 | Show All Merge Requests, per repo | Off. Lists requests you opened. On lists every open request in that repo (up to 20). The list is the 100 GitLab projects you belong to with the newest activity, and the 100 GitHub repos you can access that were pushed most recently. |
 | Open at login | On. macOS and Windows both use the Electron login item. |
 
