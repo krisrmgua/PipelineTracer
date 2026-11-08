@@ -219,6 +219,9 @@ check("preferences fall back to defaults", () => {
   assert.equal(prefs.rememberPlace, true);
   assert.equal(sanitizePrefs(null).rememberPlace, false);
   assert.equal(sanitizePrefs(null).mergeButton, true);
+  assert.equal(sanitizePrefs(null).stackMenuBar, false);
+  assert.equal(sanitizePrefs({ stackMenuBar: true } as never).stackMenuBar, true);
+  assert.equal(sanitizePrefs({ stackMenuBar: 1 } as never).stackMenuBar, false);
   assert.deepEqual(sanitizePrefs(null).showAllRequests, []);
   const scoped = sanitizePrefs({
     showAllRequests: ["github:example/app", "gitlab:group/sub/repo", "github:example/app", "nope", "github:../x"],

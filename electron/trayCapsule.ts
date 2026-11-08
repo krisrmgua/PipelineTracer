@@ -16,7 +16,9 @@ const HEIGHT = 26;
 const PAD_Y = 3;
 const RING_X = 5;
 const RING_SIZE = HEIGHT - PAD_Y * 2; // 20
-const FONT = '500 12px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", Menlo, monospace';
+const fontFor = (px: number): string =>
+  `500 ${px}px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", Menlo, monospace`;
+const FONT = fontFor(12);
 
 export interface CapsuleCounts {
   mergeRequests: number;
@@ -71,6 +73,8 @@ function counterParts(counts: CapsuleCounts): { text: string; color: string }[] 
 
 /**
  * Swift MenuBarCapsule: dark inset pill, progress ring, optional MR/Run/Fail counters.
+ * Row (default) puts counters side by side with dividers. Stacked puts one counter
+ * per line to the right of the ring, so the menu bar item takes less width.
  * Returns a 2× PNG buffer (width×height in points); caller sets scaleFactor.
  */
 export async function trayCapsulePng(
@@ -79,15 +83,22 @@ export async function trayCapsulePng(
   failing: boolean,
   counts: CapsuleCounts,
   slices: RingSlice[] = [],
+  stacked = false,
 ): Promise<{ png: Buffer; width: number; height: number }> {
   const scale = 2;
-  const measure = createCanvas(4, 4).getContext("2d");
-  measure.font = FONT;
   const parts = counterParts(counts);
+  // Stacked lines share the 26pt height, so 3 lines need a smaller face.
+  const stackFont = parts.length >= 3 ? fontFor(9) : fontFor(11);
+  const font = stacked && parts.length > 0 ? stackFont : FONT;
+  const measure = createCanvas(4, 4).getContext("2d");
+  measure.font = font;
   const textWidths = parts.map((p) => Math.ceil(measure.measureText(p.text).width));
+  const textSpan = stacked
+    ? Math.max(0, ...textWidths)
+    : textWidths.reduce((a, b) => a + b, 0) + Math.max(0, parts.length - 1) * 16;
   const width = parts.length === 0
     ? RING_X + RING_SIZE + RING_X
-    : 38 + textWidths.reduce((a, b) => a + b, 0) + Math.max(0, parts.length - 1) * 16;
+    : 38 + textSpan;
 
   const canvas = createCanvas(Math.ceil(width * scale), Math.ceil(HEIGHT * scale));
   const ctx = canvas.getContext("2d");
@@ -112,25 +123,42 @@ export async function trayCapsulePng(
   // descent 0 for caps like "MR 2" is kept — || treated 0 as missing and sat high.
   let x = RING_X + RING_SIZE + 6;
   ctx.textBaseline = "alphabetic";
-  ctx.font = FONT;
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i];
-    const m = ctx.measureText(part.text);
-    const ascent = m.actualBoundingBoxAscent ?? 9;
-    const descent = m.actualBoundingBoxDescent ?? 3;
-    const textY = (HEIGHT - (ascent + descent)) / 2 + ascent;
-    ctx.fillStyle = part.color;
-    ctx.fillText(part.text, x, textY);
-    x += textWidths[i];
-    if (i < parts.length - 1) {
-      x += 8;
-      ctx.strokeStyle = DIVIDER;
-      ctx.lineWidth = 0.5;
-      ctx.beginPath();
-      ctx.moveTo(x, PAD_Y + 2);
-      ctx.lineTo(x, HEIGHT - PAD_Y - 2);
-      ctx.stroke();
-      x += 8;
+  ctx.font = font;
+  if (stacked) {
+    // One line per counter, each centered in an equal slice of the height.
+    // Keep 2pt clear of the top and bottom edge so lines don't sit on the curve.
+    const inset = 2;
+    const slice = (HEIGHT - inset * 2) / Math.max(1, parts.length);
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const m = ctx.measureText(part.text);
+      const ascent = m.actualBoundingBoxAscent ?? 9;
+      const descent = m.actualBoundingBoxDescent ?? 3;
+      const top = inset + i * slice;
+      const textY = top + (slice - (ascent + descent)) / 2 + ascent;
+      ctx.fillStyle = part.color;
+      ctx.fillText(part.text, x, textY);
+    }
+  } else {
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const m = ctx.measureText(part.text);
+      const ascent = m.actualBoundingBoxAscent ?? 9;
+      const descent = m.actualBoundingBoxDescent ?? 3;
+      const textY = (HEIGHT - (ascent + descent)) / 2 + ascent;
+      ctx.fillStyle = part.color;
+      ctx.fillText(part.text, x, textY);
+      x += textWidths[i];
+      if (i < parts.length - 1) {
+        x += 8;
+        ctx.strokeStyle = DIVIDER;
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(x, PAD_Y + 2);
+        ctx.lineTo(x, HEIGHT - PAD_Y - 2);
+        ctx.stroke();
+        x += 8;
+      }
     }
   }
 
