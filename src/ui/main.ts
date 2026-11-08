@@ -636,6 +636,7 @@ function renderSettings(s: TracerState): string {
       choice("refreshSeconds", "Refresh interval", REFRESH_CHOICES, p.refreshSeconds, "seconds"),
       choice("pipelineHours", "Completion history", PIPELINE_HOUR_CHOICES, p.pipelineHours, "hours"),
       toggle("mergeButton", "Show merge actions", p.mergeButton),
+      ...(mac ? [toggle("stackMenuBar", "Stack menu bar counters", p.stackMenuBar)] : []),
     ])}
     <div class="section-head">
       <div class="section-label">Show All Merge Requests</div>

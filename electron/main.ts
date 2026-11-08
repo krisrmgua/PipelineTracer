@@ -156,6 +156,7 @@ async function trayImage(
   running: number,
   failed: number,
   tone: ReturnType<typeof mrBarTone> = "none",
+  stacked = false,
 ): Promise<Electron.NativeImage> {
   const [status, progress] = progressState(controller.cardPipeline);
   const slices = ringSlices(controller.cardPipeline?.jobs ?? []);
@@ -165,7 +166,7 @@ async function trayImage(
       running,
       failed,
       mrTone: tone,
-    }, slices);
+    }, slices, stacked);
     return nativeImage.createFromBuffer(png, { scaleFactor: 2, width, height });
   }
   const size = 16;
@@ -192,10 +193,11 @@ async function updateTray(): Promise<void> {
   const tone = mrBarTone(controller.mrs);
   const [status, progress] = progressState(controller.cardPipeline);
   const shining = controller.cardPipeline?.jobs.some((j) => j.status === "running") ?? false;
-  const key = `${status}|${progress.toFixed(2)}|${requests}|${running}|${failed}|${tone}|${shining ? Math.floor(Date.now() / 180) : 0}`;
+  const stacked = isMac && store.prefs.stackMenuBar;
+  const key = `${status}|${progress.toFixed(2)}|${requests}|${running}|${failed}|${tone}|${stacked}|${shining ? Math.floor(Date.now() / 180) : 0}`;
   if (key !== lastTrayKey) {
     lastTrayKey = key;
-    tray.setImage(await trayImage(requests, running, failed, tone));
+    tray.setImage(await trayImage(requests, running, failed, tone, stacked));
   }
   // Counters live inside the capsule image on Mac (Swift parity). Clear any title.
   if (isMac) tray.setTitle("");

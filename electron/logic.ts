@@ -906,6 +906,8 @@ export interface Prefs {
   pipelineHours: number;
   /** Shows Merge on ready requests (asks to confirm). */
   mergeButton: boolean;
+  /** Mac menu bar: one counter per line (MR, Run, Fail) instead of side by side. */
+  stackMenuBar: boolean;
   /** Off returns the panel to the overview each time it opens. */
   rememberPlace: boolean;
   /** Opens the app when you sign in (macOS login item / Windows Startup). */
@@ -921,6 +923,7 @@ export const DEFAULT_PREFS: Prefs = {
   refreshSeconds: 60,
   pipelineHours: 2,
   mergeButton: true,
+  stackMenuBar: false,
   rememberPlace: false,
   startAtLogin: true,
   showAllRequests: [],
@@ -932,6 +935,7 @@ export function sanitizePrefs(input: Partial<Prefs> | null | undefined, base: Pr
     refreshSeconds: REFRESH_CHOICES.includes(p.refreshSeconds as number) ? (p.refreshSeconds as number) : base.refreshSeconds,
     pipelineHours: PIPELINE_HOUR_CHOICES.includes(p.pipelineHours as number) ? (p.pipelineHours as number) : base.pipelineHours,
     mergeButton: typeof p.mergeButton === "boolean" ? p.mergeButton : base.mergeButton,
+    stackMenuBar: typeof p.stackMenuBar === "boolean" ? p.stackMenuBar : base.stackMenuBar,
     rememberPlace: typeof p.rememberPlace === "boolean" ? p.rememberPlace : base.rememberPlace,
     startAtLogin: typeof p.startAtLogin === "boolean" ? p.startAtLogin : base.startAtLogin,
     showAllRequests: Array.isArray(p.showAllRequests) ? sanitizeShowAll(p.showAllRequests) : base.showAllRequests,
