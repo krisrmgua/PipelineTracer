@@ -7,9 +7,12 @@ import {
   makeMergeRequest,
   mergeRequestIID,
   mergeStatusIsProvisional,
+  isActiveStatus,
   isRunning,
   parseDate,
   parseGitHubJob,
+  parseWorkflowJobNames,
+  withUnstartedWorkflowJobs,
   parseGitHubPull,
   parseGitHubRun,
   parseGitLabJob,
@@ -326,10 +329,26 @@ async function loadGitHubJobs(p: Pipeline): Promise<Job[] | null> {
   const r = await ghGET(`repos/${repo}/actions/runs/${p.id}/jobs?per_page=100`);
   const list = arr(obj(r.json)?.jobs);
   if (r.status !== 0 || !list) return null;
-  return list
+  const started = list
     .map(parseGitHubJob)
     .filter((j): j is Job => j != null)
     .sort((a, b) => a.id - b.id);
+  if (!isActiveStatus(p.status) || !p.workflowPath || !HEX.test(p.sha)) return started;
+  return withUnstartedWorkflowJobs(started, await githubWorkflowJobs(repo, p.workflowPath, p.sha), p.url);
+}
+
+/** Jobs declared in the workflow file. The jobs API hides one until it starts. */
+async function githubWorkflowJobs(repo: string, file: string, sha: string) {
+  const r = await ghGET(`repos/${repo}/contents/${file}?ref=${sha}`);
+  const item = obj(r.json);
+  const content = str(item?.content);
+  if (r.status !== 0 || str(item?.encoding) !== "base64" || !content) return [];
+  try {
+    const text = Buffer.from(content.replace(/\s/g, ""), "base64").toString("utf8");
+    return parseWorkflowJobNames(text);
+  } catch {
+    return [];
+  }
 }
 
 const GITHUB_PR_FIELDS =
