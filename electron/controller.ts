@@ -407,6 +407,7 @@ export class Controller {
     kind: NotificationKind,
   ): void {
     this.events = [{ id: randomUUID(), title, detail, status, url, date: Date.now() }, ...this.events].slice(0, 60);
+    if (!this.store.prefs.notifications) return;
     notifier.post(title, subtitle, bannerBody, thread, status === "failed", url, kind);
   }
 

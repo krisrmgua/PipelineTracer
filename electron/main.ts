@@ -298,6 +298,7 @@ function wireIpc(): void {
   });
 
   ipcMain.handle("tracer:testNotification", async () => {
+    if (!store.prefs.notifications) return { ok: false, message: "Notifications are off." };
     // macOS suppresses banners for the frontmost app — drop the panel first.
     if (panel && !panel.isDestroyed() && panel.isVisible()) {
       panel.hide();
