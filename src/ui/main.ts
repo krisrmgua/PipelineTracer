@@ -365,7 +365,7 @@ function jobRow(j: Job, key: string, small = false): string {
     ${tinted(statusIcon(j.status), tone(j.status), 12, "width:15px")}
     <span class="name" title="${esc(j.name)}">${esc(j.name)}</span>
     <span class="dur">${esc(duration(j, small ? "—" : statusTitle(j.status)))}</span>
-    <button type="button" class="inline" data-act="log" data-key="${esc(key)}" data-job="${j.id}">View logs</button>
+    ${j.id < 0 ? "" : `<button type="button" class="inline" data-act="log" data-key="${esc(key)}" data-job="${j.id}">View logs</button>`}
   </div>`;
 }
 

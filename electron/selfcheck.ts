@@ -32,6 +32,9 @@ import {
   parseTrackedRepoKey,
   parseGitHubPull,
   parseGitHubRun,
+  parseWorkflowJobNames,
+  workflowFilePath,
+  withUnstartedWorkflowJobs,
   parseMergeRequest,
   parseMergeRequestGraphQL,
   pipelineKey,
@@ -281,6 +284,7 @@ check("GitHub runs stay separate from GitLab", () => {
     status: "completed",
     conclusion: "failure",
     html_url: "https://github.com/example/app/actions/runs/42",
+    path: ".github/workflows/ci.yml",
     updated_at: "2026-11-03T12:00:00Z",
   };
   const parsed = parseGitHubRun(run, 7, "example/app");
@@ -288,6 +292,8 @@ check("GitHub runs stay separate from GitLab", () => {
   assert.equal(parsed.host, "github");
   assert.equal(parsed.status, "failed");
   assert.equal(parsed.workflow, "CI");
+  assert.equal(parsed.workflowPath, ".github/workflows/ci.yml");
+  assert.equal(workflowFilePath(".github/workflows/../secret.yml"), null);
   assert.equal(refLabel(parsed), "CI · main");
   assert.equal(pipelineKey(parsed), "github:7:42");
   const failed = makePipeline({ host: "gitlab", projectID: 7, id: 10, project: "example/app", ref: "main", status: "failed", sha: "abc" });
@@ -297,6 +303,47 @@ check("GitHub runs stay separate from GitLab", () => {
   const docs = makePipeline({ host: "github", projectID: 7, id: 100, project: "example/app", ref: "main", status: "success", updated: 30_000, sha: "abc", workflow: "Docs" });
   const ci = makePipeline({ host: "github", projectID: 7, id: 98, project: "example/app", ref: "main", status: "failed", updated: 20_000, sha: "abc", workflow: "CI" });
   assert.deepEqual(unresolvedFailures([docs, ci]).map((p) => p.workflow), ["CI"]);
+});
+
+check("github keeps a job that has not started", () => {
+  const yaml = [
+    "name: Build and deploy",
+    "on: push",
+    "jobs:",
+    "  build-push:",
+    "    runs-on: ubuntu-latest",
+    "    steps:",
+    "      - name: Build",
+    "  deploy:",
+    "    needs: build-push",
+    '    name: "Deploy"',
+  ].join("\n");
+  const defined = parseWorkflowJobNames(yaml);
+  assert.deepEqual(defined.map((job) => job.name), ["build-push", "Deploy"]);
+  const started: Job[] = [
+    { id: 5, name: "build-push", stage: "build-push", status: "running", url: "https://github.com/example/app/actions/runs/1/job/5", duration: null, startedAt: 1 },
+  ];
+  const url = "https://github.com/example/app/actions/runs/1";
+  const waiting = withUnstartedWorkflowJobs(started, defined, url);
+  assert.deepEqual(
+    waiting.map((job) => [job.name, job.status]),
+    [
+      ["build-push", "running"],
+      ["Deploy", "pending"],
+    ],
+  );
+  assert.ok(waiting[1].id < 0);
+  assert.equal(waiting[1].url, url);
+  const both = withUnstartedWorkflowJobs(
+    [
+      ...started,
+      { id: 9, name: "test (node)", stage: "test (node)", status: "pending", url: "https://github.com/example/app/actions/runs/1/job/9", duration: null, startedAt: null },
+      { id: 6, name: "Deploy", stage: "Deploy", status: "running", url: "https://github.com/example/app/actions/runs/1/job/6", duration: null, startedAt: 2 },
+    ],
+    [...defined, { id: "test", name: "test" }],
+    url,
+  );
+  assert.deepEqual(both.map((job) => job.id), [5, 6, 9]);
 });
 
 check("menu bar MR color follows the request", async () => {

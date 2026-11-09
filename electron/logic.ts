@@ -30,6 +30,8 @@ export interface Pipeline {
   sourceBranch: string;
   /** GitHub workflow name. Empty for GitLab. */
   workflow: string;
+  /** GitHub workflow file, such as `.github/workflows/deploy.yml`. Empty otherwise. */
+  workflowPath: string;
 }
 
 /** An open GitLab merge request or GitHub pull request you created. */
@@ -87,6 +89,7 @@ export function makePipeline(p: Partial<Pipeline> & Pick<Pipeline, "projectID" |
     jobs: [],
     sourceBranch: "",
     workflow: "",
+    workflowPath: "",
     ...p,
   };
 }
@@ -592,7 +595,94 @@ export function parseGitHubRun(run: Json, repoID: number, repoName: string): Pip
     updated: parseDate(run.updated_at) ?? parseDate(run.created_at),
     sha: str(run.head_sha),
     workflow: str(run.name),
+    workflowPath: workflowFilePath(str(run.path)) ?? "",
   });
+}
+
+/**
+ * A workflow file path from GitHub. Only `.github/workflows/*.yml` is accepted,
+ * so the path can be passed to the contents API.
+ */
+export function workflowFilePath(path: string): string | null {
+  if (!path.startsWith(".github/workflows/")) return null;
+  if (path.split("/").some((part) => part === "" || part === "." || part === "..")) return null;
+  if (!/^\.github\/workflows\/[\w./-]+\.ya?ml$/i.test(path)) return null;
+  return path;
+}
+
+export interface WorkflowJobName {
+  id: string;
+  name: string;
+}
+
+/** Job ids (and an optional display name) from a GitHub Actions workflow file. */
+export function parseWorkflowJobNames(yaml: string): WorkflowJobName[] {
+  const lines = yaml.split(/\r?\n/);
+  let inJobs = false;
+  const jobs: WorkflowJobName[] = [];
+  let current: WorkflowJobName | null = null;
+  let bodyIndent: number | null = null;
+  for (const line of lines) {
+    if (!line.trim() || /^\s*#/.test(line)) continue;
+    const indent = line.match(/^ */)?.[0].length ?? 0;
+    const text = line.trim();
+    if (!inJobs) {
+      if (indent === 0 && text === "jobs:") inJobs = true;
+      continue;
+    }
+    if (indent === 0) break;
+    const key = text.match(/^["']?([\w.-]+)["']?:\s*(#.*)?$/);
+    if (indent === 2 && key) {
+      current = { id: key[1], name: key[1] };
+      jobs.push(current);
+      bodyIndent = null;
+      continue;
+    }
+    if (!current || indent <= 2) continue;
+    if (bodyIndent == null) bodyIndent = indent;
+    if (indent !== bodyIndent || !text.startsWith("name:")) continue;
+    const raw = text.slice("name:".length).trim().replace(/^["']|["']$/g, "");
+    if (raw && !raw.includes("${{")) current.name = raw;
+  }
+  return jobs;
+}
+
+function workflowJobMatches(apiName: string, defined: WorkflowJobName): boolean {
+  if (apiName === defined.name || apiName === defined.id) return true;
+  return apiName.startsWith(`${defined.name} (`) || apiName.startsWith(`${defined.id} (`);
+}
+
+/**
+ * GitHub omits a job from the jobs API until it starts. A later job that
+ * `needs` an earlier one is still on the workflow graph, so keep it as queued.
+ */
+export function withUnstartedWorkflowJobs(started: Job[], defined: WorkflowJobName[], pipelineURL: string): Job[] {
+  if (!defined.length) return started;
+  const used = new Set<number>();
+  const out: Job[] = [];
+  let synthetic = 0;
+  for (const job of defined) {
+    const matches = started.filter((item) => !used.has(item.id) && workflowJobMatches(item.name, job));
+    if (matches.length) {
+      for (const item of matches) {
+        used.add(item.id);
+        out.push(item);
+      }
+      continue;
+    }
+    synthetic += 1;
+    out.push({
+      id: -synthetic,
+      name: job.name,
+      stage: job.name,
+      status: "pending",
+      url: pipelineURL.startsWith("https://github.com/") ? pipelineURL : "",
+      duration: null,
+      startedAt: null,
+    });
+  }
+  for (const item of started) if (!used.has(item.id)) out.push(item);
+  return out;
 }
 
 /** A GitHub Actions job or check run. The job name doubles as the stage. */
