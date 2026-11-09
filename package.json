@@ -1,7 +1,7 @@
 {
   "name": "pipeline-tracer",
   "productName": "Pipeline Tracer",
-  "version": "0.3.27",
+  "version": "0.3.28",
   "description": "Tray app for your GitLab and GitHub pipelines, merge requests, and pull requests, for macOS and Windows",
   "main": "dist-electron/main.js",
   "author": "Kristopher Simmons",
