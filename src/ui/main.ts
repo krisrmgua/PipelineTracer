@@ -625,9 +625,12 @@ function renderSettings(s: TracerState): string {
   const p = s.prefs;
   const mac = s.platform === "darwin";
   const supported = s.notificationsSupported;
-  const banner = mac
-    ? "Failures are titled Pipeline Tracer and play a sound. macOS chooses the banner colors. Click a banner to open its page."
-    : "Failures are titled Pipeline Tracer, play a sound, and stay until you dismiss them. Click a notification to open its page.";
+  const enabled = p.notifications;
+  const banner = !enabled
+    ? "Banners are off. Events still show under the bell."
+    : mac
+      ? "Failures are titled Pipeline Tracer and play a sound. macOS chooses the banner colors. Click a banner to open its page."
+      : "Failures are titled Pipeline Tracer, play a sound, and stay until you dismiss them. Click a notification to open its page.";
   return `<div class="stack wide">
     <div class="section-label">Panel</div>
     ${panel([toggle("rememberPlace", "Reopen where I left off", p.rememberPlace)])}
@@ -648,13 +651,14 @@ function renderSettings(s: TracerState): string {
     ${panel([toggle("startAtLogin", "Open at login", p.startAtLogin)])}
     <div class="section-label">Notifications</div>
     ${panel([
+      toggle("notifications", "Show notifications", enabled),
       `<div class="stack" style="padding:10px">
         <div style="display:flex;align-items:center;gap:6px;color:var(--cyan)">${icon("bellBadge", 12)}<span>Failures alert · successes stay quiet</span></div>
         <div class="note" style="display:flex;align-items:center;gap:6px;color:${supported ? "var(--green)" : "var(--orange)"}">${icon(supported ? "success" : "bellSlash", 11)}<span>${supported ? "Notifications available on this system" : "Notifications are not supported here"}</span></div>
         <div class="note">${esc(banner)}</div>
         <div style="display:flex;gap:6px">
           <button type="button" class="inline" data-act="notification-settings">Notification settings</button>
-          <button type="button" class="inline" data-act="notification-test"${supported ? "" : " disabled"}>Send test</button>
+          <button type="button" class="inline" data-act="notification-test"${supported && enabled ? "" : " disabled"}>Send test</button>
         </div>
         ${
           ui.testNote

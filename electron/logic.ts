@@ -912,6 +912,8 @@ export interface Prefs {
   rememberPlace: boolean;
   /** Opens the app when you sign in (macOS login item / Windows Startup). */
   startAtLogin: boolean;
+  /** Posts banners for pipeline and merge events. The bell list stays either way. */
+  notifications: boolean;
   /**
    * Repo keys (`gitlab:group/project` or `github:owner/name`) that list every
    * open request. Missing keys stay on requests you opened.
@@ -926,6 +928,7 @@ export const DEFAULT_PREFS: Prefs = {
   stackMenuBar: true,
   rememberPlace: false,
   startAtLogin: true,
+  notifications: true,
   showAllRequests: [],
 };
 
@@ -938,6 +941,7 @@ export function sanitizePrefs(input: Partial<Prefs> | null | undefined, base: Pr
     stackMenuBar: typeof p.stackMenuBar === "boolean" ? p.stackMenuBar : base.stackMenuBar,
     rememberPlace: typeof p.rememberPlace === "boolean" ? p.rememberPlace : base.rememberPlace,
     startAtLogin: typeof p.startAtLogin === "boolean" ? p.startAtLogin : base.startAtLogin,
+    notifications: typeof p.notifications === "boolean" ? p.notifications : base.notifications,
     showAllRequests: Array.isArray(p.showAllRequests) ? sanitizeShowAll(p.showAllRequests) : base.showAllRequests,
   };
 }

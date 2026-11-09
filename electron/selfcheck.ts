@@ -220,6 +220,9 @@ check("preferences fall back to defaults", () => {
   assert.equal(sanitizePrefs(null).rememberPlace, false);
   assert.equal(sanitizePrefs(null).mergeButton, true);
   assert.equal(sanitizePrefs(null).stackMenuBar, true);
+  assert.equal(sanitizePrefs(null).notifications, true);
+  assert.equal(sanitizePrefs({ notifications: false } as never).notifications, false);
+  assert.equal(sanitizePrefs({ notifications: 0 } as never).notifications, true);
   assert.equal(sanitizePrefs({ stackMenuBar: true } as never).stackMenuBar, true);
   assert.equal(sanitizePrefs({ stackMenuBar: 1 } as never).stackMenuBar, true);
   assert.deepEqual(sanitizePrefs(null).showAllRequests, []);

@@ -262,7 +262,7 @@ Open a request for its description, source and target branches, author, and pipe
 
 Banners are titled **Pipeline Tracer**. Failures play the default sound. Each unresolved failure notifies once, including failures already there at launch, and the app remembers which ones it has announced across restarts. "Ready to merge", recoveries, and merge results notify too, starting from the second refresh so launch stays quiet. Clicking a banner opens that event's GitLab or GitHub page.
 
-The bell in the panel lists this session's events, filtered by **All**, **Pipelines**, or **Merges**. **Preferences → Send test** posts a sample banner. **Notification settings** opens the OS settings page so you can allow banners.
+The bell in the panel lists this session's events, filtered by **All**, **Pipelines**, or **Merges**. **Preferences → Show notifications** turns banners on or off; the bell list stays. **Send test** posts a sample banner when notifications are on. **Notification settings** opens the OS settings page so you can allow banners.
 
 ### Preferences
 
@@ -275,6 +275,7 @@ The bell in the panel lists this session's events, filtered by **All**, **Pipeli
 | Stack menu bar counters | On. macOS only. Puts MR, Run, and Fail on separate lines beside the ring to save menu bar width. |
 | Show All Merge Requests, per repo | Off. Lists requests you opened. On lists every open request in that repo (up to 20). The list is the 100 GitLab projects you belong to with the newest activity, and the 100 GitHub repos you can access that were pushed most recently. |
 | Open at login | On. macOS and Windows both use the Electron login item. |
+| Show notifications | On. Off stops banners. The bell list still records events. |
 
 Preferences are saved in `pipelinetracer.json` in the app data folder:
 
