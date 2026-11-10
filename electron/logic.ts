@@ -930,6 +930,25 @@ export function mrState(mr: MergeRequest): string {
   return mr.draft ? "Draft" : isReady(mr) ? "Ready to merge" : statusTitle(mr.mergeStatus);
 }
 
+/**
+ * `gh run view <id> --log` prefixes every line with the job name and step.
+ * Keep one job, and drop the job name so the step and message remain.
+ * If nothing matches, the full log is kept.
+ */
+export function githubJobLog(text: string, jobName: string): string {
+  const name = jobName.trim();
+  if (!name) return text;
+  const picked: string[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const tab = line.indexOf("\t");
+    if (tab < 0 || line.slice(0, tab) !== name) continue;
+    const rest = line.slice(tab + 1);
+    const stepTab = rest.indexOf("\t");
+    picked.push(stepTab < 0 ? rest : `${rest.slice(0, stepTab)}  ${rest.slice(stepTab + 1)}`);
+  }
+  return picked.length ? picked.join("\n") : text;
+}
+
 /** Strip ANSI, GitLab section markers, and carriage returns; keep the newest 250k chars. */
 export function cleanLog(text: string): string {
   return text

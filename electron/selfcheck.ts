@@ -9,6 +9,7 @@ import {
   githubCanMerge,
   githubMergeMethod,
   githubPullStatus,
+  githubJobLog,
   githubRepoName,
   githubStatus,
   groupSameChange,
@@ -344,6 +345,19 @@ check("github keeps a job that has not started", () => {
     url,
   );
   assert.deepEqual(both.map((job) => job.id), [5, 6, 9]);
+});
+
+check("github job log keeps one job", () => {
+  const raw = [
+    "build-push\tSet up job\tCurrent runner version",
+    "deploy\tCheckout\tfetching",
+    "build-push\tBuild and push\tPushed image",
+  ].join("\n");
+  assert.equal(
+    githubJobLog(raw, "build-push"),
+    "Set up job  Current runner version\nBuild and push  Pushed image",
+  );
+  assert.equal(githubJobLog(raw, "missing"), raw);
 });
 
 check("menu bar MR color follows the request", async () => {

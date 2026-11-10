@@ -248,7 +248,7 @@ The overview groups activity into:
 
 A GitLab merge-request pipeline and the branch pipeline for the same change show as one card.
 
-Open a pipeline for its jobs, grouped by stage on a sideways track. GitHub uses each Actions job name as the stage. A later job that has not started is still listed; GitHub leaves it out of the jobs API until the job before it finishes. Open a job for a log snapshot (the newest 250,000 characters). Logs can be filtered and copied. They are not saved to disk. GitHub sometimes sends a log as a zip; the panel tells you to open the job in the browser instead.
+Open a pipeline for its jobs, grouped by stage on a sideways track. GitHub uses each Actions job name as the stage. A later job that has not started is still listed; GitHub leaves it out of the jobs API until the job before it finishes. Open a job for a log snapshot (the newest 250,000 characters). Logs can be filtered and copied. They are not saved to disk. GitHub logs come from `gh run view <run id> --log`, limited to the job you opened.
 
 Open a request for its description, source and target branches, author, and pipeline or check runs. **Escape** goes back, and on the overview it closes the panel.
 

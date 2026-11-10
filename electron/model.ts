@@ -10,6 +10,7 @@ import {
   isActiveStatus,
   isRunning,
   parseDate,
+  githubJobLog,
   parseGitHubJob,
   parseWorkflowJobNames,
   withUnstartedWorkflowJobs,
@@ -566,15 +567,15 @@ async function closeGitHub(mr: MergeRequest): Promise<Outcome> {
   return { ok: true };
 }
 
-/** GitLab returns a text trace. GitHub's job-log endpoint returns text; a zip is left for the browser. */
+/** GitLab returns a text trace. GitHub logs come from `gh run view <run> --log`. */
 export async function jobTrace(job: Job, p: Pipeline): Promise<string | null> {
   if (p.host === "gitlab") {
     const r = await run("glab", ["api", "--hostname", "gitlab.com", `projects/${p.projectID}/jobs/${job.id}/trace`]);
     return r.status === 0 ? r.out : null;
   }
   const repo = githubRepoName(p.project);
-  if (!repo) return null;
-  const r = await run("gh", ["api", "--hostname", "github.com", `repos/${repo}/actions/jobs/${job.id}/logs`]);
-  if (r.status !== 0 || r.out.startsWith("PK\u0003\u0004")) return null;
-  return r.out;
+  if (!repo || !Number.isInteger(p.id) || p.id <= 0) return null;
+  const r = await run("gh", ["run", "view", String(p.id), "--log", "--repo", repo], 120_000);
+  if (r.status !== 0 || !r.out.trim()) return null;
+  return githubJobLog(r.out, job.name);
 }
