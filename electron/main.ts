@@ -7,8 +7,9 @@ import {
   browserURL,
   mrKey,
   pipelineKey,
+  isRunning,
   progressState,
-  ringSlices,
+  ringSlicesForPipeline,
   refLabel,
   mrBarTone,
   trayCounts,
@@ -159,7 +160,7 @@ async function trayImage(
   stacked = false,
 ): Promise<Electron.NativeImage> {
   const [status, progress] = progressState(controller.cardPipeline);
-  const slices = ringSlices(controller.cardPipeline?.jobs ?? []);
+  const slices = ringSlicesForPipeline(controller.cardPipeline);
   if (isMac) {
     const { png, width, height } = await trayCapsulePng(status, progress, false, {
       mergeRequests: requests,
@@ -192,7 +193,8 @@ async function updateTray(): Promise<void> {
   const { requests, running, failed } = trayCounts(controller.pipelines, controller.mrs);
   const tone = mrBarTone(controller.mrs);
   const [status, progress] = progressState(controller.cardPipeline);
-  const shining = controller.cardPipeline?.jobs.some((j) => j.status === "running") ?? false;
+  const card = controller.cardPipeline;
+  const shining = card != null && isRunning(card) && card.jobs.some((j) => j.status === "running");
   const stacked = isMac && store.prefs.stackMenuBar;
   const key = `${status}|${progress.toFixed(2)}|${requests}|${running}|${failed}|${tone}|${stacked}|${shining ? Math.floor(Date.now() / 180) : 0}`;
   if (key !== lastTrayKey) {
@@ -330,7 +332,7 @@ async function boot(): Promise<void> {
   tray = new Tray(await trayImage(0, 0, 0));
   // The ring fill depends on how long the current job has been running.
   setInterval(() => {
-    const live = controller?.pipelines.some((p) => p.jobs.some((j) => j.status === "running"));
+    const live = controller?.pipelines.some((p) => isRunning(p) && p.jobs.some((j) => j.status === "running"));
     if (live) void updateTray();
   }, 180);
   tray.setToolTip("Pipeline Tracer");

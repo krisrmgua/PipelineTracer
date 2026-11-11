@@ -311,6 +311,16 @@ export interface RingSlice {
   fill: number;
 }
 
+/**
+ * The pipeline already finished, but a saved job list still says one job is
+ * running. That leftover is what keeps the menu-bar ring orange.
+ */
+export function finishedWithStaleRun(p: Pipeline): boolean {
+  const finished =
+    isSuccess(p) || isFailed(p) || p.status === "canceled" || p.status === "cancelled" || p.status === "skipped";
+  return finished && p.jobs.some((j) => j.status === "running");
+}
+
 /** Each job owns an equal slice. A running job is the slice that should gleam. */
 export function ringSlices(jobs: Job[], now = Date.now()): RingSlice[] {
   return jobs.map((job) => {
@@ -330,9 +340,32 @@ export function jobRingShare(job: Job, now = Date.now()): number {
   return 0.08 + (RUN_FILL - 0.08) * grown;
 }
 
+/** Ring slices for a pipeline. A finished pipeline does not keep a running gleam. */
+export function ringSlicesForPipeline(p: Pipeline | null | undefined, now = Date.now()): RingSlice[] {
+  if (!p) return [];
+  if (!finishedWithStaleRun(p)) return ringSlices(p.jobs, now);
+  const status = isFailed(p)
+    ? "failed"
+    : p.status === "canceled" || p.status === "cancelled"
+      ? "canceled"
+      : p.status === "skipped"
+        ? "skipped"
+        : "success";
+  return ringSlices(
+    p.jobs.map((j) => (j.status === "running" ? { ...j, status } : j)),
+    now,
+  );
+}
+
 /** Overall state and ring fill. Failure beats running, which beats waiting. */
 export function progressState(p: Pipeline | null | undefined, now = Date.now()): [RingStatus, number] {
   if (!p) return ["pending", 0];
+  if (finishedWithStaleRun(p)) {
+    if (isFailed(p)) return ["failed", 1];
+    if (p.status === "canceled" || p.status === "cancelled") return ["canceled", 1];
+    if (p.status === "skipped") return ["skipped", 1];
+    return ["passed", 1];
+  }
   if (p.status === "canceled" || p.status === "cancelled") return ["canceled", 1];
   if (p.status === "skipped") return ["skipped", 1];
   if (!p.jobs.length) {

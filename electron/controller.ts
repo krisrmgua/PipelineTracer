@@ -4,6 +4,7 @@ import {
   applyJobUpdate,
   isActiveStatus,
   omitHiddenRequests,
+  finishedWithStaleRun,
   isFailed,
   isReady,
   isRunning,
@@ -239,15 +240,20 @@ export class Controller {
 
     // Reuse jobs while status+sha are unchanged. A live pipeline is the exception:
     // its jobs move while the list still says "running".
+    const staleJobLists = new Set<number>();
     for (let i = 0; i < pipes.length; i++) {
       if (isRunning(pipes[i])) continue;
       const old = previousPipes.get(pipelineKey(pipes[i]));
-      if (old && old.status === pipes[i].status && old.sha === pipes[i].sha && old.jobs.length) {
-        pipes[i] = { ...pipes[i], jobs: old.jobs };
-      } else {
-        const cached = model.cachedJobs(pipes[i]);
-        if (cached) pipes[i] = { ...pipes[i], jobs: cached };
+      const reused =
+        old && old.status === pipes[i].status && old.sha === pipes[i].sha && old.jobs.length
+          ? old.jobs
+          : model.cachedJobs(pipes[i]);
+      if (!reused) continue;
+      if (finishedWithStaleRun({ ...pipes[i], jobs: reused })) {
+        staleJobLists.add(i);
+        continue;
       }
+      pipes[i] = { ...pipes[i], jobs: reused };
     }
     // Fetch jobs for live pipelines, the status card, and pipelines that just finished or newly failed.
     const runningIndex = pipes.findIndex(isRunning);
@@ -255,6 +261,10 @@ export class Controller {
     const toLoad = new Set<number>();
     if (cardIndex >= 0 && !pipes[cardIndex].jobs.length) toLoad.add(cardIndex);
     pipes.forEach((p, i) => {
+      if (staleJobLists.has(i)) {
+        toLoad.add(i);
+        return;
+      }
       if (isRunning(p)) {
         toLoad.add(i);
         return;

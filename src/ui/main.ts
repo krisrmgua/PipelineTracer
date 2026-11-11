@@ -21,7 +21,7 @@ import {
   pipelineKey,
   progressState,
   requestJustFinished,
-  ringSlices,
+  ringSlicesForPipeline,
   refLabel,
   relative,
   serviceName,
@@ -329,7 +329,7 @@ function openButton(url: string, label: string): string {
 function ring(p: Pipeline): string {
   const c = tone(p.status);
   const done = completed(p.jobs);
-  const slices = ringSlices(p.jobs);
+  const slices = ringSlicesForPipeline(p);
   const r = 11.5;
   const circ = 2 * Math.PI * r;
   const n = slices.length;
