@@ -38,11 +38,13 @@ import {
   withUnstartedWorkflowJobs,
   parseMergeRequest,
   parseMergeRequestGraphQL,
+  finishedWithStaleRun,
   pipelineKey,
   progressState,
   projectIDFromGraphQL,
   refLabel,
   ringSlices,
+  ringSlicesForPipeline,
   sameChange,
   sanitizePrefs,
   settlePipeline,
@@ -125,6 +127,17 @@ check("a running job fills its slice before it finishes", () => {
   assert.ok(halfway > 0.2 && halfway < 0.5);
   const done = progressState(pipeline("success", [job("success", 1)]), now)[1];
   assert.equal(done, 1);
+});
+
+check("a finished pipeline does not keep a running ring", () => {
+  const stuck = pipeline("success", [job("running", 1)]);
+  assert.equal(finishedWithStaleRun(stuck), true);
+  assert.equal(finishedWithStaleRun(pipeline("running", [job("running", 1)])), false);
+  const [status, fraction] = progressState(stuck);
+  assert.equal(status, "passed");
+  assert.equal(fraction, 1);
+  assert.deepEqual(ringSlicesForPipeline(stuck).map((s) => s.kind), ["done"]);
+  assert.equal(progressState(pipeline("failed", [job("running", 1)]))[0], "failed");
 });
 
 check("a running job owns the slice that gleams", () => {

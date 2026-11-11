@@ -7,6 +7,7 @@ import {
   makeMergeRequest,
   mergeRequestIID,
   mergeStatusIsProvisional,
+  finishedWithStaleRun,
   isActiveStatus,
   isRunning,
   parseDate,
@@ -205,7 +206,10 @@ const cacheKey = (p: Pipeline) => `${p.host}:${p.projectID}:${p.id}`;
 
 export function cachedJobs(p: Pipeline): Job[] | null {
   const hit = jobCache.get(cacheKey(p));
-  return hit && hit.fingerprint === `${p.status}|${p.sha}` ? hit.jobs : null;
+  if (!hit || hit.fingerprint !== `${p.status}|${p.sha}`) return null;
+  // A finished pipeline must not keep a job that was still running when we saved it.
+  if (finishedWithStaleRun({ ...p, jobs: hit.jobs })) return null;
+  return hit.jobs;
 }
 
 /** Reuses jobs while the pipeline status and SHA are unchanged. */
