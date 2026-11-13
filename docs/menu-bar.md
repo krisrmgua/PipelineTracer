@@ -1,6 +1,6 @@
 # Menu-bar gallery
 
-Every icon/capsule is produced by the app’s real drawing functions. Sample values are fictional. Labeled sheets enlarge rendered PNGs 2×; the combined TokenPulse strip retains its original Retina pixels. No account data, credentials, private repository data, job state, or live prices are read. The entry point never starts the production backend and blocks network requests.
+Every icon and capsule is produced by the app’s real drawing functions. Sample values are fictional. Labeled sheets enlarge the rendered PNGs 2×. No account data, credentials, or live pipeline state is read. The entry point never starts the production backend and blocks network requests.
 
 ## Regenerate only menu-bar previews
 
