@@ -12,7 +12,7 @@ app.commandLine.appendSwitch('force-device-scale-factor', '2');
 app.commandLine.appendSwitch('lang', 'en-US');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 app.whenReady().then(async () => {
-  // Only bundled local resources. No provider, broker, Git host, or localhost API calls.
+  // Only bundled local resources. Any other request, including a Git host, is cancelled.
   session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
     callback({ cancel: !/^(file:|data:|devtools:)/.test(details.url) });
   });
