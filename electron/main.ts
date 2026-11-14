@@ -263,6 +263,12 @@ function wireIpc(): void {
     return jobs;
   });
 
+  ipcMain.handle("tracer:merged", async (_e, key: unknown) => {
+    const p = findPipeline(key);
+    if (!p) return null;
+    return model.mergedRequestForPipeline(p);
+  });
+
   ipcMain.handle("tracer:log", async (_e, key: unknown, job: Job) => {
     const p = findPipeline(key);
     if (!p || !job || !isInt(job.id)) return null;

@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("tracer", {
   refresh: () => ipcRenderer.invoke("tracer:refresh"),
   setPrefs: (prefs: unknown) => ipcRenderer.invoke("tracer:setPrefs", prefs),
   jobs: (pipelineKey: string, force: boolean) => ipcRenderer.invoke("tracer:jobs", pipelineKey, force),
+  merged: (pipelineKey: string) => ipcRenderer.invoke("tracer:merged", pipelineKey),
   log: (pipelineKey: string, job: unknown) => ipcRenderer.invoke("tracer:log", pipelineKey, job),
   mrDetail: (key: string) => ipcRenderer.invoke("tracer:mrDetail", key),
   merge: (key: string, sha: string) => ipcRenderer.invoke("tracer:merge", key, sha),

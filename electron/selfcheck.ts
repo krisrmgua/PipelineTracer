@@ -19,6 +19,8 @@ import {
   isReady,
   makeMergeRequest,
   makePipeline,
+  parseMergedGitHubPull,
+  parseMergedGitLabMR,
   mergeRequestIID,
   mergeStatusIsProvisional,
   mrBarTone,
@@ -475,6 +477,44 @@ check("tray counts and icons", () => {
   assert.equal(png.subarray(1, 4).toString("ascii"), "PNG");
   assert.equal(trayIconPng("failed", 1, true, 32).readUInt32BE(16), 32);
   assert.equal(appIconPng(64).readUInt32BE(16), 64);
+});
+
+check("a commit maps to the pull request merged into its branch", () => {
+  const merged = {
+    number: 388,
+    title: "Fix console section tab colors",
+    html_url: "https://github.com/krisrmgua/Cadence-Service/pull/388",
+    merged_at: "2026-11-14T13:45:21Z",
+    base: { ref: "main" },
+  };
+  assert.deepEqual(parseMergedGitHubPull(merged, "main", "krisrmgua/Cadence-Service"), {
+    host: "github",
+    iid: 388,
+    title: "Fix console section tab colors",
+    project: "krisrmgua/Cadence-Service",
+    url: "https://github.com/krisrmgua/Cadence-Service/pull/388",
+  });
+  assert.equal(parseMergedGitHubPull({ ...merged, merged_at: null }, "main", "o/r"), null);
+  assert.equal(parseMergedGitHubPull({ ...merged, base: { ref: "dev" } }, "main", "o/r"), null);
+});
+
+check("a commit maps to the GitLab merge request merged into its branch", () => {
+  const mr = {
+    iid: 12,
+    title: "Add sync",
+    web_url: "https://gitlab.com/group/project/-/merge_requests/12",
+    state: "merged",
+    target_branch: "main",
+  };
+  assert.deepEqual(parseMergedGitLabMR(mr, "main", "group/project"), {
+    host: "gitlab",
+    iid: 12,
+    title: "Add sync",
+    project: "group/project",
+    url: "https://gitlab.com/group/project/-/merge_requests/12",
+  });
+  assert.equal(parseMergedGitLabMR({ ...mr, state: "opened" }, "main", "g/p"), null);
+  assert.equal(parseMergedGitLabMR({ ...mr, target_branch: "dev" }, "main", "g/p"), null);
 });
 
 void (async () => {
