@@ -30,6 +30,7 @@ import {
   type ActivityEvent,
   type Job,
   type MergeRequest,
+  type MergedRequest,
   type MrDetail,
   type Pipeline,
   type PipelineGroup,
@@ -42,6 +43,7 @@ interface TracerAPI {
   refresh: () => Promise<void>;
   setPrefs: (prefs: Partial<Prefs>) => Promise<Prefs>;
   jobs: (pipelineKey: string, force: boolean) => Promise<Job[] | null>;
+  merged: (pipelineKey: string) => Promise<MergedRequest | null>;
   log: (pipelineKey: string, job: Job) => Promise<string | null>;
   mrDetail: (key: string) => Promise<MrDetail | null>;
   merge: (key: string, sha: string) => Promise<boolean>;
@@ -179,6 +181,7 @@ const ui = {
   jobs: [] as Job[],
   loadingJobs: false,
   loadError: null as string | null,
+  merged: null as MergedRequest | null,
   logJob: null as Job | null,
   logTab: "logs" as "logs" | "summary",
   logText: "",
@@ -219,6 +222,7 @@ function returnToOverview(): void {
     jobs: [],
     loadingJobs: false,
     loadError: null,
+    merged: null,
     logJob: null,
     logText: "",
     loadingLog: false,
@@ -761,6 +765,15 @@ function renderLog(p: Pipeline, job: Job): string {
     <div class="tiny" id="log-count">${logCount(lines.length)}</div>`;
 }
 
+/** The merged MR or PR behind this pipeline: its number, title, and a link to it. */
+function mergedRow(m: MergedRequest): string {
+  const number = m.host === "gitlab" ? `!${m.iid}` : `#${m.iid}`;
+  return `<button type="button" class="row" data-act="open" data-url="${esc(m.url)}" style="padding:10px">
+    ${tinted("merge", "var(--green)", 14)}
+    <span class="main"><span class="t" style="font-weight:500">${esc(m.title)}</span><span class="s">${esc(`Merged ${number} · ${m.project}`)}</span></span>
+  </button>`;
+}
+
 function renderPipeline(p: Pipeline): string {
   const key = pipelineKey(p);
   const service = serviceName(p);
@@ -775,6 +788,7 @@ function renderPipeline(p: Pipeline): string {
       ${openButton(p.url, `Open pipeline on ${service}`)}
     </div>`,
   ];
+  if (ui.merged) parts.push(mergedRow(ui.merged));
   if (ui.loadError) parts.push(warnLine(ui.loadError));
   if (ui.loadingJobs && !ui.logJob) parts.push(loading("Loading jobs…"));
   if (ui.logJob) {
@@ -1120,6 +1134,16 @@ function selectPipeline(p: Pipeline): void {
   ui.pipeline = p;
   ui.jobs = p.jobs;
   void loadJobs(p, false);
+  void loadMerged(p);
+}
+
+/** Which merged MR or PR produced this pipeline's commit. Quietly absent when there is none. */
+async function loadMerged(p: Pipeline): Promise<void> {
+  const key = pipelineKey(p);
+  const merged = await call(tracer.merged(key));
+  if (!ui.pipeline || pipelineKey(ui.pipeline) !== key) return;
+  ui.merged = merged;
+  render();
 }
 
 async function selectGroup(pipelines: Pipeline[]): Promise<void> {

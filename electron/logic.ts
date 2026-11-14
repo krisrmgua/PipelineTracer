@@ -57,6 +57,16 @@ export interface MergeRequest {
   author: string;
 }
 
+/** The merge request or pull request that landed a pipeline's commit on its branch. */
+export interface MergedRequest {
+  host: Host;
+  iid: number;
+  title: string;
+  /** group/project or owner/repo */
+  project: string;
+  url: string;
+}
+
 export interface ActivityEvent {
   id: string;
   title: string;
@@ -797,6 +807,28 @@ export function githubPullStatus(
     default:
       return { draft: false, mergeStatus: "checking", pipeline };
   }
+}
+
+/**
+ * One item from `repos/{repo}/commits/{sha}/pulls`. Only a pull that was merged
+ * into the pipeline's branch counts, so a closed-unmerged pull never matches.
+ */
+export function parseMergedGitHubPull(item: Json, branch: string, project: string): MergedRequest | null {
+  const iid = jsonInt(item.number);
+  const url = str(item.html_url);
+  const base = item.base as Json | undefined;
+  if (iid == null || !url.startsWith("https://github.com/")) return null;
+  if (!str(item.merged_at) || str(base?.ref) !== branch) return null;
+  return { host: "github", iid, title: str(item.title), project, url };
+}
+
+/** One item from `projects/:id/repository/commits/:sha/merge_requests` (GitLab REST). */
+export function parseMergedGitLabMR(item: Json, branch: string, project: string): MergedRequest | null {
+  const iid = jsonInt(item.iid);
+  const url = str(item.web_url);
+  if (iid == null || !url.startsWith("https://")) return null;
+  if (str(item.state) !== "merged" || str(item.target_branch) !== branch) return null;
+  return { host: "gitlab", iid, title: str(item.title), project, url };
 }
 
 export function parseGitHubPull(node: Json): MergeRequest | null {

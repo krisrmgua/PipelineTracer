@@ -21,7 +21,10 @@ import {
   parseInstancePipeline,
   parseMergeRequest,
   parseMergeRequestGraphQL,
+  parseMergedGitHubPull,
+  parseMergedGitLabMR,
   type Job,
+  type MergedRequest,
   type MergeRequest,
   type MrDetail,
   type Pipeline,
@@ -213,6 +216,38 @@ export function cachedJobs(p: Pipeline): Job[] | null {
 }
 
 /** Reuses jobs while the pipeline status and SHA are unchanged. */
+/** A merged request is fixed once it exists, so only hits are kept. */
+const mergedCache = new Map<string, MergedRequest>();
+
+/**
+ * The merge request or pull request that put this pipeline's commit on its branch.
+ * Matched by commit SHA, so it works for merges made in the web UI too.
+ */
+export async function mergedRequestForPipeline(p: Pipeline): Promise<MergedRequest | null> {
+  if (!HEX.test(p.sha) || !p.ref) return null;
+  const key = `${p.host}:${p.projectID}:${p.sha}:${p.ref}`;
+  const hit = mergedCache.get(key);
+  if (hit) return hit;
+  let found: MergedRequest | null = null;
+  if (p.host === "github") {
+    const repo = githubRepoName(p.project);
+    const r = repo ? await ghGET(`repos/${repo}/commits/${p.sha}/pulls`) : null;
+    const list = r?.status === 0 ? arr(r.json) : null;
+    for (const item of list ?? []) {
+      found = parseMergedGitHubPull(item, p.ref, repo ?? p.project);
+      if (found) break;
+    }
+  } else {
+    const list = arr(await glabJSON(`projects/${p.projectID}/repository/commits/${p.sha}/merge_requests`));
+    for (const item of list ?? []) {
+      found = parseMergedGitLabMR(item, p.ref, p.project);
+      if (found) break;
+    }
+  }
+  if (found) mergedCache.set(key, found);
+  return found;
+}
+
 export async function jobsForPipeline(p: Pipeline, force = false): Promise<Job[] | null> {
   if (!force) {
     const cached = cachedJobs(p);
