@@ -339,24 +339,40 @@ function ring(p: Pipeline): string {
   const n = slices.length;
   const sliceLen = n > 0 ? circ / n : 0;
   const phase = ((Date.now() % 1100) / 1100) * 1.1;
-  const arcs = slices
-    .map((slice, i) => {
-      if (slice.kind === "wait" || sliceLen <= 0) return "";
-      const start = -(i * circ) / n;
-      const solid = slice.kind === "done" ? sliceLen : sliceLen * slice.fill;
-      const body =
-        solid > 0.4
-          ? `<circle cx="13" cy="13" r="${r}" fill="none" style="stroke:${c}" stroke-width="3" stroke-linecap="butt" stroke-dasharray="${solid.toFixed(2)} ${circ.toFixed(2)}" stroke-dashoffset="${start.toFixed(2)}"/>`
-          : "";
-      if (slice.kind !== "running") return body;
-      // Stay inside the orange. A longer dash, or a round cap, draws past the fill.
-      const shine = Math.min(solid * 0.42, 7);
-      if (shine < 0.8) return body;
-      const from = start;
-      const to = start - Math.max(0, solid - shine);
-      return `${body}<circle class="ring-shine" cx="13" cy="13" r="${r}" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="butt" stroke-dasharray="${shine.toFixed(2)} ${circ.toFixed(2)}" style="--shine-from:${from.toFixed(2)}px;--shine-to:${to.toFixed(2)}px;animation-delay:-${phase.toFixed(3)}s"/>`;
+  // Filled slices that touch become one arc. Separate arcs leave hairline seams where the butt ends meet.
+  const spans: { start: number; len: number }[] = [];
+  slices.forEach((slice, i) => {
+    if (slice.kind === "wait" || sliceLen <= 0) return;
+    const len = (slice.kind === "done" ? 1 : slice.fill) / n;
+    if (len <= 0) return;
+    const start = i / n;
+    const last = spans[spans.length - 1];
+    if (last && Math.abs(last.start + last.len - start) < 1e-9) last.len += len;
+    else spans.push({ start, len });
+  });
+  const body = spans
+    .map(({ start, len }) => {
+      const solid = len * circ;
+      if (solid <= 0.4) return "";
+      // A full ring is a plain circle, so its start point does not show a seam.
+      if (solid >= circ - 0.01) return `<circle cx="13" cy="13" r="${r}" fill="none" style="stroke:${c}" stroke-width="3"/>`;
+      return `<circle cx="13" cy="13" r="${r}" fill="none" style="stroke:${c}" stroke-width="3" stroke-linecap="butt" stroke-dasharray="${solid.toFixed(2)} ${circ.toFixed(2)}" stroke-dashoffset="${(-start * circ).toFixed(2)}"/>`;
     })
     .join("");
+  const shine = slices
+    .map((slice, i) => {
+      if (slice.kind !== "running" || sliceLen <= 0) return "";
+      const start = -(i * circ) / n;
+      const solid = sliceLen * slice.fill;
+      // Stay inside the orange. A longer dash, or a round cap, draws past the fill.
+      const width = Math.min(solid * 0.42, 7);
+      if (solid <= 0.4 || width < 0.8) return "";
+      const from = start;
+      const to = start - Math.max(0, solid - width);
+      return `<circle class="ring-shine" cx="13" cy="13" r="${r}" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="butt" stroke-dasharray="${width.toFixed(2)} ${circ.toFixed(2)}" style="--shine-from:${from.toFixed(2)}px;--shine-to:${to.toFixed(2)}px;animation-delay:-${phase.toFixed(3)}s"/>`;
+    })
+    .join("");
+  const arcs = body + shine;
   const label = p.jobs.length
     ? `<span class="label" style="color:${c}">${done}/${p.jobs.length}</span>`
     : tinted(statusIcon(p.status), c, 10);
