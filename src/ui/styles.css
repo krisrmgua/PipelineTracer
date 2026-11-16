@@ -63,6 +63,71 @@ button {
   flex: 1;
 }
 
+#update {
+  display: flex;
+  justify-content: center;
+  padding: 8px 14px 0;
+  flex: 0 0 auto;
+}
+
+#update.hidden {
+  display: none;
+}
+
+.update-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 3px 4px 3px 4px;
+  border-radius: 999px;
+  border: 0.5px solid rgba(77, 209, 245, 0.4);
+  background: rgba(77, 209, 245, 0.14);
+  color: var(--cyan);
+}
+
+.update-pill .update-open {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  padding: 3px 8px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 999px;
+}
+
+.update-pill .update-open:hover {
+  background: rgba(77, 209, 245, 0.16);
+}
+
+.update-pill .dismiss {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.update-pill .dismiss:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
 .back {
   appearance: none;
   display: inline-flex;

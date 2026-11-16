@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld("tracer", {
   fit: (width: number, height: number) => ipcRenderer.invoke("tracer:fit", width, height),
   hide: () => ipcRenderer.invoke("tracer:hide"),
   quit: () => ipcRenderer.invoke("tracer:quit"),
+  dismissUpdate: () => ipcRenderer.invoke("tracer:dismissUpdate"),
   onState: (cb: (state: unknown) => void) => on("tracer:state", (s) => cb(s)),
   onHidden: (cb: () => void) => on("tracer:hidden", () => cb()),
   onShown: (cb: () => void) => on("tracer:shown", () => cb()),

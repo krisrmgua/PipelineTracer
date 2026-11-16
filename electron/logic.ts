@@ -1141,6 +1141,12 @@ export interface CliStatus {
   gh: string | null;
 }
 
+/** Newer GitHub tag than the running build, when the update check finds one. */
+export interface AppUpdate {
+  version: string;
+  url: string;
+}
+
 /** Everything the panel renders, pushed from the main process on each change. */
 export interface TracerState {
   pipelines: Pipeline[];
@@ -1160,6 +1166,8 @@ export interface TracerState {
   version: string;
   cli: CliStatus;
   notificationsSupported: boolean;
+  /** Null when current, unknown, or dismissed for this session. */
+  updateAvailable: AppUpdate | null;
 }
 
 export interface MrDetail {
