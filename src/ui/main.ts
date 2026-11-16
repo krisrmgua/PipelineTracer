@@ -55,6 +55,7 @@ interface TracerAPI {
   fit: (width: number, height: number) => Promise<void>;
   hide: () => Promise<void>;
   quit: () => Promise<void>;
+  dismissUpdate: () => Promise<void>;
   onState: (cb: (state: TracerState) => void) => () => void;
   onHidden: (cb: () => void) => () => void;
   onShown: (cb: () => void) => () => void;
@@ -73,6 +74,7 @@ const WORKSPACE_WIDTH = 620;
 const WORKSPACE_HEIGHT = 540;
 
 const top = document.getElementById("top")!;
+const updateEl = document.getElementById("update")!;
 const body = document.getElementById("body")!;
 const content = document.getElementById("content")!;
 const foot = document.getElementById("foot")!;
@@ -979,6 +981,17 @@ function renderFoot(s: TracerState | null): string {
   return `<span>${esc(ver + updated)}</span><span>${esc(counts)}</span>`;
 }
 
+function renderUpdate(s: TracerState | null): string {
+  const update = s?.updateAvailable;
+  if (!update) return "";
+  return `<div class="update-pill">
+    <button type="button" class="update-open" data-act="open-update" data-url="${esc(update.url)}" title="Open the new version">
+      v${esc(update.version)} available
+    </button>
+    <button type="button" class="dismiss" data-act="dismiss-update" title="Dismiss">×</button>
+  </div>`;
+}
+
 function renderOverlay(): void {
   const mr = ui.mr;
   if (!ui.confirming || !mr || ui.screen !== "mr") {
@@ -1037,6 +1050,9 @@ let lastScreenKey = "";
 function render(): void {
   const s = state;
   setHTML(top, renderTop(s));
+  const updateHtml = renderUpdate(s);
+  updateEl.classList.toggle("hidden", !updateHtml);
+  setHTML(updateEl, updateHtml);
   setHTML(foot, renderFoot(s));
 
   const key = screenKey();
@@ -1107,7 +1123,7 @@ function requestFit(): void {
       void call(tracer.fit(WORKSPACE_WIDTH, WORKSPACE_HEIGHT));
       return;
     }
-    const height = top.offsetHeight + content.offsetHeight + foot.offsetHeight + 2;
+    const height = top.offsetHeight + updateEl.offsetHeight + content.offsetHeight + foot.offsetHeight + 2;
     void call(tracer.fit(INBOX_WIDTH, Math.ceil(height)));
   });
 }
@@ -1402,7 +1418,11 @@ async function act(name: string, el: HTMLElement): Promise<void> {
       void finishConfirm("close");
       return;
     case "open":
+    case "open-update":
       if (el.dataset.url) void call(tracer.openExternal(el.dataset.url));
+      return;
+    case "dismiss-update":
+      void call(tracer.dismissUpdate());
       return;
     case "copy-log":
       void call(tracer.copy(ui.logText));

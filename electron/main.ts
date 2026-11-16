@@ -24,6 +24,8 @@ import * as notifier from "./notifier";
 import { discoverPath } from "./shell";
 import { Store } from "./store";
 import { trayCapsulePng } from "./trayCapsule";
+import { UpdateChecker } from "./updateCheck";
+import type { TracerState } from "./logic";
 
 const APP_ID = "com.kris.pipelinetracer";
 const isDev = process.env.PIPELINE_TRACER_DEV === "1";
@@ -37,6 +39,7 @@ let tray: Tray | null = null;
 let panel: BrowserWindow | null = null;
 let store: Store;
 let controller: Controller;
+let updates: UpdateChecker;
 let lastTrayKey = "";
 
 let panelAddress = "";
@@ -146,9 +149,13 @@ function togglePanel(): void {
   void controller.refresh();
 }
 
+function panelState(): TracerState {
+  return { ...controller.snapshot(), updateAvailable: updates?.snapshot() ?? null };
+}
+
 function broadcast(): void {
   void updateTray();
-  panel?.webContents.send("tracer:state", controller.snapshot());
+  panel?.webContents.send("tracer:state", panelState());
 }
 
 /** Swift MenuBarCapsule on Mac; bare ring on Windows (taskbar icon slot is square). */
@@ -240,11 +247,15 @@ function findRequest(key: unknown, sha: unknown): MergeRequest | null {
 }
 
 function wireIpc(): void {
-  ipcMain.handle("tracer:getState", () => controller.snapshot());
+  ipcMain.handle("tracer:getState", () => panelState());
 
   ipcMain.handle("tracer:refresh", () => {
     controller.schedule();
     void controller.refresh();
+  });
+
+  ipcMain.handle("tracer:dismissUpdate", () => {
+    updates?.dismiss();
   });
 
   ipcMain.handle("tracer:setPrefs", (_e, input: Partial<Prefs>) => {
@@ -333,6 +344,7 @@ async function boot(): Promise<void> {
   if (isMac) app.dock?.hide();
   store = new Store();
   controller = new Controller(store, broadcast);
+  updates = new UpdateChecker("krisrmgua", "GitLabTracer", () => app.getVersion(), broadcast);
   applyLoginItem(store.prefs);
 
   tray = new Tray(await trayImage(0, 0, 0));
@@ -360,6 +372,7 @@ async function boot(): Promise<void> {
   await discoverPath();
   controller.schedule();
   void controller.refresh();
+  updates.start();
 }
 
 app.setName("Pipeline Tracer");
@@ -370,7 +383,10 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.whenReady().then(() => void boot());
   app.on("second-instance", () => togglePanel());
-  app.on("before-quit", () => controller?.stop());
+  app.on("before-quit", () => {
+    controller?.stop();
+    updates?.stop();
+  });
   // Tray app: stay alive with no windows.
   app.on("window-all-closed", () => {});
 }

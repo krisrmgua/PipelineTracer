@@ -517,6 +517,15 @@ check("a commit maps to the GitLab merge request merged into its branch", () => 
   assert.equal(parseMergedGitLabMR({ ...mr, target_branch: "dev" }, "main", "g/p"), null);
 });
 
+check("isNewer compares GitHub tags for the update pill", async () => {
+  const { isNewer } = await import("./updateCheck");
+  assert.equal(isNewer("0.3.34", "0.3.33"), true);
+  assert.equal(isNewer("v0.3.33", "0.3.33"), false);
+  assert.equal(isNewer("0.3.32", "0.3.33"), false);
+  assert.equal(isNewer("1.0.0", "0.9.9"), true);
+  assert.equal(isNewer("not-a-version", "0.3.33"), false);
+});
+
 void (async () => {
   for (const [name, fn] of checks) {
     try {

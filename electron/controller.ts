@@ -89,6 +89,7 @@ export class Controller {
       version: app.getVersion(),
       cli: { glab: toolPath("glab"), gh: toolPath("gh") },
       notificationsSupported: notifier.notificationsSupported(),
+      updateAvailable: null,
     };
   }
 
