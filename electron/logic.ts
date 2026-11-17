@@ -259,8 +259,38 @@ export function unresolvedFailures(list: Pipeline[]): Pipeline[] {
   });
 }
 
+/** Semver tag refs from a bump-version release (`v1.2.3` or `1.2.3`). */
+export function isVersionTag(ref: string): boolean {
+  return /^v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/i.test(ref.trim());
+}
+
+function isDefaultBranch(ref: string): boolean {
+  return ref === "main" || ref === "master";
+}
+
+/** How close a main push and its tag release may be to count as one change. */
+const RELEASE_FOLLOWUP_MS = 45 * 60 * 1000;
+
+/**
+ * Post-merge `main`/`master` run paired with the bump-version tag release that
+ * follows it (same GitHub workflow when both name one).
+ */
+export function sameReleaseFollowup(lhs: Pipeline, rhs: Pipeline): boolean {
+  if (lhs.host !== rhs.host || lhs.projectID !== rhs.projectID || lhs.id === rhs.id) return false;
+  if (lhs.host === "github" && lhs.workflow !== rhs.workflow) return false;
+  const leftTag = isVersionTag(lhs.ref);
+  const rightTag = isVersionTag(rhs.ref);
+  if (leftTag === rightTag) return false;
+  if (!isDefaultBranch(leftTag ? rhs.ref : lhs.ref)) return false;
+  if (lhs.updated != null && rhs.updated != null && Math.abs(lhs.updated - rhs.updated) > RELEASE_FOLLOWUP_MS) {
+    return false;
+  }
+  return true;
+}
+
 export function sameChange(lhs: Pipeline, rhs: Pipeline): boolean {
   if (lhs.host !== rhs.host || lhs.projectID !== rhs.projectID || lhs.id === rhs.id) return false;
+  if (sameReleaseFollowup(lhs, rhs)) return true;
   const mr = mergeRequestIID(lhs) != null ? lhs : rhs;
   const branch = mergeRequestIID(lhs) != null ? rhs : lhs;
   if (mergeRequestIID(mr) == null || mergeRequestIID(branch) != null) return false;
@@ -273,13 +303,17 @@ function group(pipelines: Pipeline[]): PipelineGroup {
   return {
     id: pipelines.map(pipelineKey).sort().join("|"),
     pipelines,
-    primary: pipelines.find((p) => mergeRequestIID(p) != null) ?? pipelines[0],
+    primary:
+      pipelines.find((p) => mergeRequestIID(p) != null) ??
+      pipelines.find((p) => isVersionTag(p.ref)) ??
+      pipelines[0],
   };
 }
 
 /**
- * Collapse a merge-request pipeline and the branch pipeline for that same change into one
- * group. A `main` or `master` pipeline stays separate unless it is the MR's source branch.
+ * Collapse related pipelines for one change: an MR with its source branch, or a
+ * default-branch push with the version-tag release that follows. A lone
+ * `main`/`master` run stays separate from unrelated feature work.
  */
 export function groupSameChange(list: Pipeline[]): PipelineGroup[] {
   const remaining = [...list];
@@ -289,9 +323,7 @@ export function groupSameChange(list: Pipeline[]): PipelineGroup[] {
     const match = remaining.findIndex((other) => sameChange(p, other));
     if (match >= 0) {
       const other = remaining.splice(match, 1)[0];
-      const mr = mergeRequestIID(p) != null ? p : other;
-      const branch = mergeRequestIID(p) != null ? other : p;
-      groups.push(group([mr, branch]));
+      groups.push(group([p, other]));
     } else {
       groups.push(group([p]));
     }
@@ -300,6 +332,8 @@ export function groupSameChange(list: Pipeline[]): PipelineGroup[] {
 }
 
 export function groupTitle(pipelines: Pipeline[]): string {
+  const tag = pipelines.find((p) => isVersionTag(p.ref));
+  if (tag) return tag.ref;
   const branch = pipelines.find((p) => mergeRequestIID(p) == null);
   if (branch) return branch.ref;
   const iid = pipelines[0] ? mergeRequestIID(pipelines[0]) : null;

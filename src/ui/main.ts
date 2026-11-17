@@ -11,6 +11,7 @@ import {
   isFailed,
   isReady,
   isRunning,
+  isVersionTag,
   settlePipeline,
   isSuccess,
   mergeRequestIID,
@@ -415,22 +416,26 @@ function pipelineRow(p: Pipeline, history = false): string {
   </button>`;
 }
 
+function pipelineKindLabel(p: Pipeline): string {
+  const iid = mergeRequestIID(p);
+  if (iid != null) return `MR !${iid}`;
+  if (isVersionTag(p.ref)) return `tag ${p.ref}`;
+  return p.ref || "branch";
+}
+
 function groupRow(g: PipelineGroup): string {
   if (g.pipelines.length === 1) return pipelineRow(g.pipelines[0]);
-  const branch = g.pipelines.find((p) => mergeRequestIID(p) == null);
   const mrPipe = g.pipelines.find((p) => mergeRequestIID(p) != null);
   const iid = mrPipe ? mergeRequestIID(mrPipe) : null;
   const times = g.pipelines.map((p) => p.updated).filter((t): t is number => t != null);
   const when = times.length ? Math.max(...times) : null;
-  const states = [
-    mrPipe ? esc(`MR !${iid} · ${statusTitle(mrPipe.status)}`) : "",
-    branch ? esc(`branch · ${statusTitle(branch.status)}`) : "",
-  ].filter(Boolean);
+  const states = g.pipelines.map((p) => esc(`${pipelineKindLabel(p)} · ${statusTitle(p.status)}`));
+  const subtitle = iid != null ? `${g.primary.project} · MR !${iid}` : `${g.primary.project} · one change`;
   return `<button type="button" class="row" data-act="group" data-keys="${esc(g.pipelines.map(pipelineKey).join(","))}">
     ${ring(g.primary)}
     <span class="main">
       <span class="t">${esc(groupTitle(g.pipelines))}</span>
-      <span class="s">${esc(`${g.primary.project} · MR !${iid ?? 0}`)}</span>
+      <span class="s">${esc(subtitle)}</span>
       <span class="s">${states.join("&emsp;")}</span>
     </span>
     <span class="when">${esc(relative(when))}</span>
@@ -827,20 +832,23 @@ function renderPipeline(p: Pipeline): string {
 
 function renderGroup(): string {
   const ps = ui.group;
+  const host = ps[0] ? serviceName(ps[0]) : "GitLab";
   const sections = ps.map((p) => {
     const key = pipelineKey(p);
     const jobs = ui.groupJobs.get(key) ?? p.jobs;
     const shown = settlePipeline({ ...p, jobs });
     const iid = mergeRequestIID(p);
+    const label = iid != null ? `MR !${iid}` : isVersionTag(p.ref) ? "Tag" : "Branch";
+    const ref = iid != null ? `refs/merge-requests/${iid}/head` : p.ref;
     return `<div class="stack">
       <div style="display:flex;align-items:center;gap:8px">
-        <span class="section-label" style="font-size:11px">${iid == null ? "Branch" : `MR !${iid}`}</span>
+        <span class="section-label" style="font-size:11px">${esc(label)}</span>
         <span class="mono note">#${p.id}</span>
         <span style="flex:1"></span>
         ${badge(statusTitle(shown.status), shown.status)}
         ${openButton(p.url, `Open pipeline on ${serviceName(p)}`)}
       </div>
-      <div class="s">${esc(iid == null ? p.ref : `refs/merge-requests/${iid}/head`)}</div>
+      <div class="s">${esc(ref)}</div>
       ${ui.loadingJobs && !jobs.length ? loading("Loading jobs…") : ""}
       ${jobs.length ? panel(jobs.map((j) => jobRow(j, key))) : ""}
     </div>`;
@@ -848,7 +856,7 @@ function renderGroup(): string {
   return `<div class="stack wide">
     <div class="detail-head"><div class="main">
       <span class="t">${esc(groupTitle(ps))}</span>
-      <span class="s">${esc(ps[0]?.project ?? "")} · one change, two GitLab pipelines</span>
+      <span class="s">${esc(ps[0]?.project ?? "")} · one change, two ${esc(host)} pipelines</span>
     </div></div>
     ${ui.loadError ? warnLine(ui.loadError) : ""}
     ${sections.join("")}

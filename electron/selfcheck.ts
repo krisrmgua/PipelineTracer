@@ -17,8 +17,10 @@ import {
   isActiveStatus,
   isDone,
   isReady,
+  isVersionTag,
   makeMergeRequest,
   makePipeline,
+  sameReleaseFollowup,
   parseMergedGitHubPull,
   parseMergedGitLabMR,
   mergeRequestIID,
@@ -207,6 +209,57 @@ check("branch and merge-request pipelines group", () => {
   const twin = makePipeline({ projectID: 1, id: 31, ref: "feature/other", status: "running", sha: "abc" });
   assert.equal(groupSameChange([sameSha, twin, main]).length, 2);
   assert.ok(!sameChange(sameSha, main));
+});
+
+check("main and version-tag release pipelines group", () => {
+  assert.ok(isVersionTag("v0.1.268"));
+  assert.ok(isVersionTag("0.3.34"));
+  assert.ok(!isVersionTag("main"));
+  assert.ok(!isVersionTag("feature/v0.1.268"));
+  const main = makePipeline({
+    host: "github",
+    projectID: 7,
+    id: 44133619340,
+    project: "krisrmgua/Cadence-Service",
+    ref: "main",
+    status: "running",
+    updated: 1_000,
+    sha: "main-sha",
+    workflow: "Build and deploy Cadence Service",
+  });
+  const tag = makePipeline({
+    host: "github",
+    projectID: 7,
+    id: 44133795586,
+    project: "krisrmgua/Cadence-Service",
+    ref: "v0.1.268",
+    status: "running",
+    updated: 60_000,
+    sha: "tag-sha",
+    workflow: "Build and deploy Cadence Service",
+  });
+  const chart = makePipeline({
+    host: "github",
+    projectID: 7,
+    id: 44133801448,
+    project: "krisrmgua/Cadence-Service",
+    ref: "v0.1.268",
+    status: "running",
+    updated: 62_000,
+    sha: "tag-sha",
+    workflow: "chart",
+  });
+  assert.ok(sameReleaseFollowup(main, tag));
+  assert.ok(sameChange(main, tag));
+  assert.ok(!sameReleaseFollowup(main, chart));
+  assert.ok(!sameChange(main, chart));
+  const groups = groupSameChange([main, tag, chart]);
+  assert.equal(groups.length, 2);
+  assert.ok(groups.some((g) => g.pipelines.map((p) => p.id).sort().join() === "44133619340,44133795586"));
+  assert.ok(groups.some((g) => g.pipelines.map((p) => p.id).join() === "44133801448"));
+  assert.equal(groupTitle([main, tag]), "v0.1.268");
+  const stale = makePipeline({ ...tag, id: 99, updated: 1_000 + 46 * 60 * 1000 });
+  assert.ok(!sameReleaseFollowup(main, stale));
 });
 
 check("dates parse with and without fractional seconds", () => {
