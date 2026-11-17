@@ -341,6 +341,54 @@ export function groupTitle(pipelines: Pipeline[]): string {
   return pipelines[0]?.ref ?? "";
 }
 
+/** Prefer the job that is actually doing work over a twin that was skipped. */
+export function jobActivityRank(status: string): number {
+  const s = status.toLowerCase();
+  if (s === "failed") return 6;
+  if (s === "running") return 5;
+  if (s === "manual") return 4;
+  if (WAITING.has(s)) return 3;
+  if (s === "success" || s === "passed") return 2;
+  if (s === "canceled" || s === "cancelled") return 1;
+  if (s === "skipped") return 0;
+  return 2;
+}
+
+/**
+ * One job list for a split main+tag release: keep each job name once, take the
+ * more active copy, and drop names that only ever skipped.
+ */
+export function mergeJobsPreferActive(jobs: Job[]): Job[] {
+  const best = new Map<string, Job>();
+  const order: string[] = [];
+  for (const job of jobs) {
+    if (!best.has(job.name)) order.push(job.name);
+    const prev = best.get(job.name);
+    if (!prev || jobActivityRank(job.status) > jobActivityRank(prev.status)) best.set(job.name, job);
+  }
+  return order.map((name) => best.get(name)!).filter((job) => job.status !== "skipped");
+}
+
+/**
+ * Collapse a main push and its version-tag follow-up into one pipeline that
+ * looks normal in the list and detail. Null when the pair is not that case.
+ */
+export function fuseReleasePipelines(pipelines: Pipeline[]): Pipeline | null {
+  if (pipelines.length !== 2 || !sameReleaseFollowup(pipelines[0], pipelines[1])) return null;
+  const primary = pipelines.find((p) => isVersionTag(p.ref)) ?? pipelines[0];
+  const jobs = mergeJobsPreferActive(pipelines.flatMap((p) => p.jobs));
+  const updated = pipelines.reduce<number | null>((max, p) => {
+    if (p.updated == null) return max;
+    return max == null || p.updated > max ? p.updated : max;
+  }, null);
+  return settlePipeline({
+    ...primary,
+    ref: groupTitle(pipelines),
+    jobs,
+    updated,
+  });
+}
+
 export type RingStatus = "passed" | "running" | "failed" | "pending" | "canceled" | "skipped";
 
 /** A running job fills most of its slice, then waits for the real finish. */

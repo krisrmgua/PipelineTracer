@@ -5,6 +5,7 @@ import {
   descriptionSummary,
   formatDuration,
   applyJobUpdate,
+  fuseReleasePipelines,
   groupSameChange,
   groupTitle,
   isDone,
@@ -25,6 +26,7 @@ import {
   ringSlicesForPipeline,
   refLabel,
   relative,
+  sameReleaseFollowup,
   serviceName,
   statusTitle,
   unresolvedFailures,
@@ -394,7 +396,7 @@ function jobRow(j: Job, key: string, small = false): string {
 
 /* ---------- rows ---------- */
 
-function pipelineRow(p: Pipeline, history = false): string {
+function pipelineRow(p: Pipeline, history = false, groupKeys?: string): string {
   const key = pipelineKey(p);
   const failedJob = isFailed(p) ? p.jobs.find((j) => j.status === "failed") : undefined;
   const lead = isFailed(p) ? `<span class="fail-icon" style="color:var(--red)">${icon("alert", 23)}</span>` : ring(p);
@@ -404,7 +406,9 @@ function pipelineRow(p: Pipeline, history = false): string {
   const title = isFailed(p) ? "Pipeline failed" : p.workflow || `Pipeline #${p.id}`;
   const tip = `${p.project} #${p.id} · ${refLabel(p)} · ${statusTitle(p.status)}`;
   const chev = history && ui.expandedHistory === key ? "chevronDown" : "chevronRight";
-  return `<button type="button" class="row" data-act="${history ? "history-toggle" : "pipeline"}" data-key="${esc(key)}" title="${esc(tip)}">
+  const act = history ? "history-toggle" : groupKeys ? "group" : "pipeline";
+  const keysAttr = groupKeys ? ` data-keys="${esc(groupKeys)}"` : "";
+  return `<button type="button" class="row" data-act="${act}" data-key="${esc(key)}"${keysAttr} title="${esc(tip)}">
     ${lead}${progress}
     <span class="main">
       <span class="t">${esc(title)}</span>
@@ -414,6 +418,14 @@ function pipelineRow(p: Pipeline, history = false): string {
     <span class="when">${esc(relative(p.updated))}</span>
     <span class="chev">${icon(chev, 10)}</span>
   </button>`;
+}
+
+/** Release follow-ups render as one normal pipeline; MR+branch pairs stay a group. */
+function changeRow(g: PipelineGroup): string {
+  if (g.pipelines.length === 1) return pipelineRow(g.pipelines[0]);
+  const fused = fuseReleasePipelines(g.pipelines);
+  if (fused) return pipelineRow(fused, false, g.pipelines.map(pipelineKey).join(","));
+  return groupRow(g);
 }
 
 function pipelineKindLabel(p: Pipeline): string {
@@ -470,11 +482,11 @@ function renderOverview(s: TracerState): string {
 
   if (failureGroups.length) {
     parts.push(heading("Attention needed", failureGroups.length, "var(--red)", "pull"));
-    parts.push(panel(failureGroups.map(groupRow)));
+    parts.push(panel(failureGroups.map(changeRow)));
   }
 
   parts.push(heading("In progress", activeGroups.length, "var(--cyan)", "branch"));
-  parts.push(panel(activeGroups.length ? activeGroups.map(groupRow) : [empty(firstLoad ? "Loading pipelines…" : "No active pipelines")]));
+  parts.push(panel(activeGroups.length ? activeGroups.map(changeRow) : [empty(firstLoad ? "Loading pipelines…" : "No active pipelines")]));
 
   parts.push(heading("Requests", s.mrs.length, "var(--cyan)", "pull"));
   parts.push(panel(s.mrs.length ? s.mrs.map(mrRow) : [empty(firstLoad ? "Loading requests…" : "No open requests")]));
@@ -1186,8 +1198,49 @@ async function loadMerged(p: Pipeline): Promise<void> {
   render();
 }
 
+function pipelinesWithKnownJobs(pipelines: Pipeline[]): Pipeline[] {
+  return pipelines.map((p) => {
+    const jobs = ui.groupJobs.get(pipelineKey(p)) ?? p.jobs;
+    return jobs.length ? { ...p, jobs } : p;
+  });
+}
+
+function applyFusedRelease(pipelines: Pipeline[]): void {
+  const fused = fuseReleasePipelines(pipelinesWithKnownJobs(pipelines));
+  if (!fused) return;
+  ui.pipeline = fused;
+  if (!ui.logJob) ui.jobs = fused.jobs;
+}
+
+/** Main+tag release: one pipeline screen with jobs merged from both runs. */
+async function selectFusedRelease(pipelines: Pipeline[]): Promise<void> {
+  returnToOverview();
+  ui.screen = "pipeline";
+  ui.group = pipelines;
+  for (const p of pipelines) ui.groupJobs.set(pipelineKey(p), p.jobs);
+  applyFusedRelease(pipelines);
+  ui.loadingJobs = true;
+  const token = ++requestToken;
+  render();
+  const results = await Promise.all(pipelines.map((p) => call(tracer.jobs(pipelineKey(p), isRunning(p)))));
+  if (token !== requestToken) return;
+  ui.loadingJobs = false;
+  results.forEach((jobs, i) => {
+    if (!jobs) return;
+    ui.groupJobs.set(pipelineKey(pipelines[i]), jobs);
+    rememberJobs(pipelines[i], jobs);
+  });
+  if (results.some((r) => r == null)) ui.loadError = "Couldn’t load every pipeline. Open the missing one in the browser.";
+  applyFusedRelease(pipelines);
+  if (ui.pipeline) void loadMerged(ui.pipeline);
+  render();
+}
+
 async function selectGroup(pipelines: Pipeline[]): Promise<void> {
   if (pipelines.length === 1) return selectPipeline(pipelines[0]);
+  if (pipelines.length === 2 && sameReleaseFollowup(pipelines[0], pipelines[1])) {
+    return selectFusedRelease(pipelines);
+  }
   returnToOverview();
   ui.screen = "group";
   ui.group = pipelines;
@@ -1205,6 +1258,15 @@ async function selectGroup(pipelines: Pipeline[]): Promise<void> {
   });
   if (results.some((r) => r == null)) ui.loadError = "Couldn’t load every pipeline. Open the missing one in the browser.";
   render();
+}
+
+function jobOwner(jobID: number): Pipeline | null {
+  for (const p of ui.group) {
+    const jobs = ui.groupJobs.get(pipelineKey(p)) ?? p.jobs;
+    if (jobs.some((j) => j.id === jobID)) return p;
+  }
+  if (ui.pipeline?.jobs.some((j) => j.id === jobID)) return ui.pipeline;
+  return state?.pipelines.find((p) => p.jobs.some((j) => j.id === jobID)) ?? null;
 }
 
 async function loadLog(job: Job, p: Pipeline): Promise<void> {
@@ -1231,17 +1293,17 @@ async function loadLog(job: Job, p: Pipeline): Promise<void> {
 
 /** Opens a job log from any screen; the pipeline detail becomes the screen behind it. */
 function openLog(key: string, jobID: number): void {
-  const p = findPipeline(key);
-  const jobs = knownJobs(key);
-  const job = jobs.find((j) => j.id === jobID);
-  if (!p || !job) return;
-  if (ui.screen !== "pipeline" || !ui.pipeline || pipelineKey(ui.pipeline) !== key) {
+  const owner = jobOwner(jobID) ?? findPipeline(key);
+  const jobs = owner ? [...(ui.groupJobs.get(pipelineKey(owner)) ?? []), ...knownJobs(pipelineKey(owner)), ...(ui.jobs ?? [])] : knownJobs(key);
+  const job = jobs.find((j) => j.id === jobID) ?? ui.jobs.find((j) => j.id === jobID);
+  if (!owner || !job) return;
+  if (ui.screen !== "pipeline" || !ui.pipeline) {
     returnToOverview();
     ui.screen = "pipeline";
-    ui.pipeline = p;
-    ui.jobs = jobs;
+    ui.pipeline = owner;
+    ui.jobs = knownJobs(pipelineKey(owner));
   }
-  void loadLog(job, p);
+  void loadLog(job, owner);
 }
 
 async function toggleHistory(key: string): Promise<void> {
@@ -1326,7 +1388,32 @@ function sync(fresh: boolean): void {
   const s = state;
   if (!s) return;
   const byKey = new Map(s.pipelines.map((p) => [pipelineKey(p), p]));
-  if (ui.pipeline) {
+  if (ui.group.length) ui.group = ui.group.map((p) => byKey.get(pipelineKey(p)) ?? p);
+  const fusedOpen =
+    ui.screen === "pipeline" &&
+    ui.group.length === 2 &&
+    sameReleaseFollowup(ui.group[0], ui.group[1]);
+  if (fusedOpen) {
+    const before = ui.pipeline?.status;
+    applyFusedRelease(ui.group);
+    if (
+      fresh &&
+      !ui.loadingJobs &&
+      ui.pipeline &&
+      (ui.pipeline.status !== before || isRunning(ui.pipeline) || ui.group.some(isRunning))
+    ) {
+      void Promise.all(ui.group.map((p) => call(tracer.jobs(pipelineKey(p), true)))).then((results) => {
+        if (ui.screen !== "pipeline" || ui.group.length !== 2) return;
+        results.forEach((jobs, i) => {
+          if (!jobs) return;
+          ui.groupJobs.set(pipelineKey(ui.group[i]), jobs);
+          rememberJobs(ui.group[i], jobs);
+        });
+        applyFusedRelease(ui.group);
+        render();
+      });
+    }
+  } else if (ui.pipeline) {
     const live = byKey.get(pipelineKey(ui.pipeline));
     if (live) {
       const changed = live.status !== ui.pipeline.status;
@@ -1335,7 +1422,6 @@ function sync(fresh: boolean): void {
       if (fresh && ui.screen === "pipeline" && !ui.loadingJobs && (changed || isRunning(live))) void loadJobs(live, true);
     }
   }
-  if (ui.group.length) ui.group = ui.group.map((p) => byKey.get(pipelineKey(p)) ?? p);
   if (ui.mr && !ui.mrLoading && !ui.confirming) {
     const current = ui.mr;
     const live = s.mrs.find((m) => mrKey(m) === mrKey(current));
