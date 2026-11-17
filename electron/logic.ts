@@ -527,7 +527,7 @@ export function trayCounts(pipelines: Pipeline[], mrs: MergeRequest[]): TrayCoun
   const live = pipelines.filter(isRunning);
   return {
     requests: mrs.length,
-    running: groupSameChange(withReleaseFollowups(live, pipelines)).length,
+    running: activeGroupsWithTwins(live, pipelines).length,
     failed: groupSameChange(unresolvedFailures(pipelines)).length,
   };
 }
