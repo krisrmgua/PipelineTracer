@@ -30,6 +30,7 @@ import {
   serviceName,
   statusTitle,
   unresolvedFailures,
+  withReleaseFollowups,
   type ActivityEvent,
   type Job,
   type MergeRequest,
@@ -273,7 +274,8 @@ const requestNoun = (mr: MergeRequest): string => (mr.host === "github" ? "pull 
 function derived(s: TracerState) {
   const pipelines = s.pipelines.map((p) => settlePipeline(p));
   const failureGroups = groupSameChange(unresolvedFailures(pipelines));
-  const activeGroups = groupSameChange(pipelines.filter((p) => isRunning(p) || p.status === "manual"));
+  const live = pipelines.filter((p) => isRunning(p) || p.status === "manual");
+  const activeGroups = groupSameChange(withReleaseFollowups(live, pipelines));
   const finished = pipelines.filter(isSuccess);
   const other = pipelines.filter((p) => ["canceled", "cancelled", "skipped"].includes(p.status));
   const mergedEvents = s.events.filter((e) => e.status === "merged");

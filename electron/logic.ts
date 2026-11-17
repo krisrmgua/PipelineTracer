@@ -389,6 +389,25 @@ export function fuseReleasePipelines(pipelines: Pipeline[]): Pipeline | null {
   });
 }
 
+/**
+ * Keep a finished main/tag release twin next to its still-active partner so the
+ * fuse does not fall back to the skipped jobs on the live run alone.
+ */
+export function withReleaseFollowups(active: Pipeline[], all: Pipeline[]): Pipeline[] {
+  const seen = new Set(active.map(pipelineKey));
+  const extra: Pipeline[] = [];
+  for (const p of active) {
+    for (const other of all) {
+      const key = pipelineKey(other);
+      if (seen.has(key)) continue;
+      if (!sameReleaseFollowup(p, other)) continue;
+      seen.add(key);
+      extra.push(other);
+    }
+  }
+  return extra.length ? [...active, ...extra] : active;
+}
+
 export type RingStatus = "passed" | "running" | "failed" | "pending" | "canceled" | "skipped";
 
 /** A running job fills most of its slice, then waits for the real finish. */
@@ -488,9 +507,10 @@ export interface TrayCounts {
 }
 
 export function trayCounts(pipelines: Pipeline[], mrs: MergeRequest[]): TrayCounts {
+  const live = pipelines.filter(isRunning);
   return {
     requests: mrs.length,
-    running: groupSameChange(pipelines.filter(isRunning)).length,
+    running: groupSameChange(withReleaseFollowups(live, pipelines)).length,
     failed: groupSameChange(unresolvedFailures(pipelines)).length,
   };
 }

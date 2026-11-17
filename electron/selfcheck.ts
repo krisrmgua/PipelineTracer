@@ -23,6 +23,7 @@ import {
   makePipeline,
   mergeJobsPreferActive,
   sameReleaseFollowup,
+  withReleaseFollowups,
   parseMergedGitHubPull,
   parseMergedGitLabMR,
   mergeRequestIID,
@@ -298,6 +299,22 @@ check("main and version-tag release pipelines group", () => {
     fused!.jobs.map((j) => j.name),
     ["build-push", "release-image", "deploy", "cleanup-images"],
   );
+
+  const doneTag = makePipeline({
+    ...tagJobs,
+    status: "success",
+    jobs: tagJobs.jobs.map((j) =>
+      j.name === "release-image" ? { ...j, status: "success", duration: 12 } : j,
+    ),
+  });
+  const liveOnly = [mainJobs];
+  const withPartner = withReleaseFollowups(liveOnly, [mainJobs, doneTag, chart]);
+  assert.equal(withPartner.length, 2);
+  assert.ok(withPartner.some((p) => p.id === doneTag.id));
+  const kept = fuseReleasePipelines(withPartner);
+  assert.ok(kept);
+  assert.equal(kept!.jobs.find((j) => j.name === "release-image")?.status, "success");
+  assert.equal(groupSameChange(withPartner).length, 1);
 });
 
 check("dates parse with and without fractional seconds", () => {
