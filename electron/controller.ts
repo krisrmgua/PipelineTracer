@@ -15,6 +15,7 @@ import {
   parseTrackedRepoKey,
   pipelineKey,
   refLabel,
+  sameReleaseFollowup,
   sameStrings,
   unresolvedFailures,
   type ActivityEvent,
@@ -274,6 +275,15 @@ export class Controller {
       const key = pipelineKey(p);
       const leftActive = wasActive.has(key) && !isRunning(p);
       if (leftActive || (isFailed(p) && !knownPipes.has(key))) toLoad.add(i);
+    });
+    // Finished tag/main twins of a live release need their jobs so the fuse can
+    // show the successful stage instead of the skipped copy on the live run.
+    pipes.forEach((p, i) => {
+      if (!isRunning(p) && p.status !== "manual") return;
+      pipes.forEach((other, j) => {
+        if (i === j || other.jobs.length || toLoad.has(j)) return;
+        if (sameReleaseFollowup(p, other)) toLoad.add(j);
+      });
     });
     await Promise.all(
       [...toLoad].map(async (i) => {
