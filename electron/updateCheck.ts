@@ -5,7 +5,7 @@ export type AppUpdate = {
   url: string;
 };
 
-const CHECK_MS = 6 * 60 * 60 * 1000;
+const CHECK_MS = 60 * 60 * 1000;
 const TIMEOUT_MS = 12_000;
 
 function parseVersion(raw: string): number[] | null {
