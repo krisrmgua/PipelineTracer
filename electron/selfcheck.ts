@@ -24,6 +24,7 @@ import {
   mergeJobsPreferActive,
   sameReleaseFollowup,
   withReleaseFollowups,
+  activeGroupsWithTwins,
   parseMergedGitHubPull,
   parseMergedGitLabMR,
   mergeRequestIID,
@@ -315,6 +316,14 @@ check("main and version-tag release pipelines group", () => {
   assert.ok(kept);
   assert.equal(kept!.jobs.find((j) => j.name === "release-image")?.status, "success");
   assert.equal(groupSameChange(withPartner).length, 1);
+
+  // The finished tag partner is not listed as active, but still rides along for the fuse.
+  const activeGroups = activeGroupsWithTwins([mainJobs], [mainJobs, doneTag, chart]);
+  assert.equal(activeGroups.length, 1);
+  assert.deepEqual(activeGroups[0].pipelines.map((p) => p.id), [mainJobs.id]);
+  assert.deepEqual((activeGroups[0].twins ?? []).map((p) => p.id), [doneTag.id]);
+  const fusedActive = fuseReleasePipelines([...activeGroups[0].pipelines, ...(activeGroups[0].twins ?? [])]);
+  assert.equal(fusedActive!.jobs.find((j) => j.name === "release-image")?.status, "success");
 });
 
 check("dates parse with and without fractional seconds", () => {
