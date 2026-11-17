@@ -80,6 +80,8 @@ export interface PipelineGroup {
   id: string;
   pipelines: Pipeline[];
   primary: Pipeline;
+  /** Finished release partners kept only so the fused row can show their jobs. */
+  twins?: Pipeline[];
 }
 
 type Json = Record<string, unknown>;
@@ -406,6 +408,19 @@ export function withReleaseFollowups(active: Pipeline[], all: Pipeline[]): Pipel
     }
   }
   return extra.length ? [...active, ...extra] : active;
+}
+
+/**
+ * Groups for the In progress list. Finished release twins ride along in `twins`
+ * so the fused row still shows their green jobs, but they are not listed as active.
+ */
+export function activeGroupsWithTwins(live: Pipeline[], all: Pipeline[]): PipelineGroup[] {
+  const liveKeys = new Set(live.map(pipelineKey));
+  return groupSameChange(withReleaseFollowups(live, all)).map((g) => {
+    const shown = g.pipelines.filter((p) => liveKeys.has(pipelineKey(p)));
+    const twins = g.pipelines.filter((p) => !liveKeys.has(pipelineKey(p)));
+    return { ...g, pipelines: shown.length ? shown : g.pipelines, twins };
+  });
 }
 
 export type RingStatus = "passed" | "running" | "failed" | "pending" | "canceled" | "skipped";

@@ -30,7 +30,7 @@ import {
   serviceName,
   statusTitle,
   unresolvedFailures,
-  withReleaseFollowups,
+  activeGroupsWithTwins,
   type ActivityEvent,
   type Job,
   type MergeRequest,
@@ -275,7 +275,7 @@ function derived(s: TracerState) {
   const pipelines = s.pipelines.map((p) => settlePipeline(p));
   const failureGroups = groupSameChange(unresolvedFailures(pipelines));
   const live = pipelines.filter((p) => isRunning(p) || p.status === "manual");
-  const activeGroups = groupSameChange(withReleaseFollowups(live, pipelines));
+  const activeGroups = activeGroupsWithTwins(live, pipelines);
   const finished = pipelines.filter(isSuccess);
   const other = pipelines.filter((p) => ["canceled", "cancelled", "skipped"].includes(p.status));
   const mergedEvents = s.events.filter((e) => e.status === "merged");
@@ -424,9 +424,10 @@ function pipelineRow(p: Pipeline, history = false, groupKeys?: string): string {
 
 /** Release follow-ups render as one normal pipeline; MR+branch pairs stay a group. */
 function changeRow(g: PipelineGroup): string {
-  if (g.pipelines.length === 1) return pipelineRow(g.pipelines[0]);
-  const fused = fuseReleasePipelines(g.pipelines);
-  if (fused) return pipelineRow(fused, false, g.pipelines.map(pipelineKey).join(","));
+  const members = [...g.pipelines, ...(g.twins ?? [])];
+  if (members.length === 1) return pipelineRow(members[0]);
+  const fused = fuseReleasePipelines(members);
+  if (fused) return pipelineRow(fused, false, members.map(pipelineKey).join(","));
   return groupRow(g);
 }
 
