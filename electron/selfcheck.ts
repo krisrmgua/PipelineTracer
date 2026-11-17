@@ -17,9 +17,11 @@ import {
   isActiveStatus,
   isDone,
   isReady,
+  fuseReleasePipelines,
   isVersionTag,
   makeMergeRequest,
   makePipeline,
+  mergeJobsPreferActive,
   sameReleaseFollowup,
   parseMergedGitHubPull,
   parseMergedGitLabMR,
@@ -260,6 +262,42 @@ check("main and version-tag release pipelines group", () => {
   assert.equal(groupTitle([main, tag]), "v0.1.268");
   const stale = makePipeline({ ...tag, id: 99, updated: 1_000 + 46 * 60 * 1000 });
   assert.ok(!sameReleaseFollowup(main, stale));
+
+  const mainJobs = makePipeline({
+    ...main,
+    jobs: [
+      { id: 1, name: "build-push", stage: "build-push", status: "running", url: "m1", duration: null },
+      { id: 2, name: "release-image", stage: "release-image", status: "skipped", url: "m2", duration: 0 },
+      { id: 3, name: "deploy", stage: "deploy", status: "pending", url: "m3", duration: null },
+      { id: 4, name: "cleanup-images", stage: "cleanup-images", status: "pending", url: "m4", duration: null },
+    ],
+  });
+  const tagJobs = makePipeline({
+    ...tag,
+    jobs: [
+      { id: 11, name: "build-push", stage: "build-push", status: "skipped", url: "t1", duration: 0 },
+      { id: 12, name: "release-image", stage: "release-image", status: "running", url: "t2", duration: null },
+      { id: 13, name: "deploy", stage: "deploy", status: "skipped", url: "t3", duration: 0 },
+      { id: 14, name: "cleanup-images", stage: "cleanup-images", status: "skipped", url: "t4", duration: 0 },
+    ],
+  });
+  assert.deepEqual(
+    mergeJobsPreferActive([...mainJobs.jobs, ...tagJobs.jobs]).map((j) => [j.name, j.status, j.id]),
+    [
+      ["build-push", "running", 1],
+      ["release-image", "running", 12],
+      ["deploy", "pending", 3],
+      ["cleanup-images", "pending", 4],
+    ],
+  );
+  const fused = fuseReleasePipelines([mainJobs, tagJobs]);
+  assert.ok(fused);
+  assert.equal(fused!.ref, "v0.1.268");
+  assert.equal(fused!.status, "running");
+  assert.deepEqual(
+    fused!.jobs.map((j) => j.name),
+    ["build-push", "release-image", "deploy", "cleanup-images"],
+  );
 });
 
 check("dates parse with and without fractional seconds", () => {
