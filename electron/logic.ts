@@ -416,10 +416,12 @@ export function withReleaseFollowups(active: Pipeline[], all: Pipeline[]): Pipel
  */
 export function activeGroupsWithTwins(live: Pipeline[], all: Pipeline[]): PipelineGroup[] {
   const liveKeys = new Set(live.map(pipelineKey));
-  return groupSameChange(withReleaseFollowups(live, all)).map((g) => {
+  return groupSameChange(withReleaseFollowups(live, all)).flatMap((g) => {
     const shown = g.pipelines.filter((p) => liveKeys.has(pipelineKey(p)));
+    // A group with no live member is only finished history pulled in by a window match.
+    if (!shown.length) return [];
     const twins = g.pipelines.filter((p) => !liveKeys.has(pipelineKey(p)));
-    return { ...g, pipelines: shown.length ? shown : g.pipelines, twins };
+    return [{ ...g, pipelines: shown, twins }];
   });
 }
 
