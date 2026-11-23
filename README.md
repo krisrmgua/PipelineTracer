@@ -174,8 +174,8 @@ The app never approves a review, never reruns a workflow, and never deletes a br
 
 ```bash
 node -v   # v20 or newer; brew install node if missing
-git clone https://github.com/krisrmgua/GitLabTracer.git
-cd GitLabTracer
+git clone https://github.com/krisrmgua/PipelineTracer.git
+cd PipelineTracer
 ./scripts/install.sh
 ```
 
@@ -197,8 +197,8 @@ Login start is **Preferences → Open at login** (Electron login item, default o
 
 ```powershell
 node -v   # v20 or newer; winget install OpenJS.NodeJS.LTS if missing
-git clone https://github.com/krisrmgua/GitLabTracer.git
-cd GitLabTracer
+git clone https://github.com/krisrmgua/PipelineTracer.git
+cd PipelineTracer
 .\scripts\install.ps1
 ```
 
