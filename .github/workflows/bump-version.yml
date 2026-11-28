@@ -21,7 +21,7 @@ jobs:
       github.event.head_commit != null &&
       !contains(github.event.head_commit.message, '[skip ci]') &&
       !startsWith(github.event.head_commit.message, 'chore: release')
-    runs-on: ubuntu-latest
+    runs-on: pipelinetracer-msi
     permissions:
       contents: write
       pull-requests: write
@@ -29,6 +29,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # The self-hosted runner image has no GitHub CLI. Install a pinned release into RUNNER_TEMP.
+      - name: Install GitHub CLI
+        env:
+          GH_VERSION: "2.63.2"
+        run: |
+          set -euo pipefail
+          arch="$(dpkg --print-architecture)"
+          curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${arch}.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/gh_${GH_VERSION}_linux_${arch}/bin" >> "$GITHUB_PATH"
 
       - uses: actions/setup-node@v4
         with:
@@ -64,8 +74,9 @@ jobs:
           set -euo pipefail
           gh pr merge "$PR" --squash \
             --subject "chore: release ${VERSION} [skip ci]" \
-            --body "Automated patch bump." \
-            --delete-branch
+            --body "Automated patch bump."
           git fetch origin main
           git tag -f "v${VERSION}" "origin/main"
           git push origin "v${VERSION}"
+          # Best-effort cleanup over git. A failure here must not fail the release.
+          git push origin --delete "chore/release-version" || echo "::warning::could not delete chore/release-version"
