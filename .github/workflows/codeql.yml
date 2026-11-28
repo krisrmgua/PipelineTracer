@@ -18,12 +18,16 @@ concurrency:
 jobs:
   codeql:
     name: CodeQL scan
-    runs-on: ubuntu-latest
+    runs-on: pipelinetracer-msi
     # Optional: a CodeQL failure must not block the pipeline.
     continue-on-error: true
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      # The self-hosted runner image has no node on PATH.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
 
       - uses: github/codeql-action/init@v4
         with:
